@@ -1,0 +1,1375 @@
+"use client";
+
+import { useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Archive,
+  Check,
+  CircleDot,
+  MessageSquare,
+  Plus,
+  Search,
+  Send,
+  Tag,
+  X,
+} from "lucide-react";
+import {
+  createCommentAction,
+  type CommentActionState,
+} from "@/app/app/comments/actions";
+import {
+  addLabelToIssueAction,
+  createLabelAction,
+  removeLabelFromIssueAction,
+  type LabelActionState,
+} from "@/app/app/labels/actions";
+import {
+  archiveIssueAction,
+  createIssueAction,
+  updateIssueAction,
+  type IssueActionState,
+} from "@/app/app/issues/actions";
+import { ActionDialog } from "@/components/action-dialog";
+import { Button } from "@/components/ui/button";
+import { CountBadge } from "@/components/ui/count-badge";
+import {
+  formatIssuePriority,
+  formatIssueStatus,
+  issuePriorityValues,
+  issueStatusValues,
+  type IssuePriorityValue,
+  type IssueStatusValue,
+} from "@/lib/issue-validation";
+import {
+  hasIssueFilters,
+  type IssueFilters,
+} from "@/lib/issue-filter-validation";
+import { buildIssueListPath } from "@/lib/issue-url";
+import { labelColorValues } from "@/lib/label-validation";
+import { cn } from "@/lib/utils";
+
+export type IssueListItem = {
+  id: string;
+  issueKey: string;
+  title: string;
+  description: string | null;
+  status: IssueStatusValue;
+  priority: IssuePriorityValue;
+  updatedAt: string;
+  createdAt: string;
+  labels: IssueLabelItem[];
+};
+
+export type SelectedIssueProject = {
+  id: string;
+  key: string;
+  name: string;
+};
+
+export type IssueDetailItem = IssueListItem & {
+  issueNumber: number;
+  project: SelectedIssueProject;
+  comments: IssueCommentItem[];
+};
+
+export type IssueLabelItem = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+export type IssueCommentItem = {
+  id: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    id: string;
+    name: string | null;
+    imageUrl: string | null;
+  };
+};
+
+const initialState: IssueActionState = {};
+const initialCommentState: CommentActionState = {};
+const initialLabelState: LabelActionState = {};
+
+export function IssuePanel({
+  workspaceSlug,
+  workspaceId,
+  project,
+  projects = [],
+  issues,
+  workspaceLabels,
+  filters,
+  selectedIssue,
+}: {
+  workspaceSlug: string;
+  workspaceId: string;
+  project: SelectedIssueProject | null;
+  projects?: SelectedIssueProject[];
+  issues: IssueListItem[];
+  workspaceLabels: IssueLabelItem[];
+  filters: IssueFilters;
+  selectedIssue?: IssueDetailItem | null;
+}) {
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingIssue, setEditingIssue] = useState<IssueListItem | null>(null);
+  const hasActiveFilters = hasIssueFilters(filters);
+
+  if (!project) {
+    return (
+      <section className="rounded-xl border border-dashed border-border/60 bg-card/58 p-8 text-center">
+        <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-lg border border-border/55 bg-background/60 text-muted-foreground">
+          <CircleDot className="size-5" aria-hidden="true" />
+        </div>
+        <h2 className="text-lg font-medium">Create a project to track issues</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+          Issues are scoped to projects. Add an active project first, then
+          capture the first task here.
+        </p>
+        <Button asChild className="mt-5">
+          <Link href={`/app/projects?workspace=${workspaceSlug}`}>
+            <Plus className="size-4" aria-hidden="true" />
+            Create project
+          </Link>
+        </Button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-border/70 bg-card/82">
+      <div className="border-b border-border/55 p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/85">
+              Issues
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-semibold tracking-normal">{project.name}</h2>
+              <span className="rounded-md border border-border/60 bg-background/50 px-2 py-1 font-mono text-xs text-muted-foreground">
+                {project.key}
+              </span>
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <CountBadge
+                count={issues.length}
+                label={hasActiveFilters ? "matching issue" : "active issue"}
+              />
+              <span>
+                {hasActiveFilters
+                  ? issues.length === 1
+                    ? "matching issue"
+                    : "matching issues"
+                  : issues.length === 1
+                    ? "active issue"
+                    : "active issues"}
+              </span>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            aria-label="Create issue"
+            title="Create issue"
+            onClick={() => setIsCreating(true)}
+          >
+            <Plus className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+        {projects.length > 1 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {projects.map((item) => (
+              <Link
+                key={item.id}
+                href={`/app/issues?workspace=${workspaceSlug}&project=${item.key}`}
+                className={cn(
+                  "rounded-md border px-2.5 py-1.5 text-xs transition hover:bg-muted/55",
+                  item.id === project.id
+                    ? "border-border/70 bg-muted/55 text-foreground"
+                    : "border-transparent bg-background/35 text-muted-foreground",
+                )}
+              >
+                {item.key}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+        <IssueFilterBar
+          workspaceSlug={workspaceSlug}
+          projectKey={project.key}
+          filters={filters}
+          workspaceLabels={workspaceLabels}
+        />
+      </div>
+
+      {issues.length === 0 ? (
+        <div className="p-6">
+          <div className="rounded-lg border border-dashed border-border/55 bg-background/28 p-8 text-center">
+            <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-lg border border-border/55 bg-muted/40 text-muted-foreground">
+              <CircleDot className="size-5" aria-hidden="true" />
+            </div>
+            <h3 className="text-base font-medium">
+              {hasActiveFilters ? "No matching issues" : "No issues in this project"}
+            </h3>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+              {hasActiveFilters
+                ? "Try a different search or clear filters to return to the active issue list."
+                : "Create the first issue with a clear title, starting status, and priority."}
+            </p>
+            {hasActiveFilters ? (
+              <Button asChild className="mt-5" variant="outline">
+                <Link href={buildIssueListPath({ workspaceSlug, projectKey: project.key })}>
+                  Clear filters
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                className="mt-5"
+                onClick={() => setIsCreating(true)}
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                Create issue
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="divide-y divide-border/45">
+          {issues.map((issue) => (
+            <IssueRow
+              key={issue.id}
+              issue={issue}
+              workspaceSlug={workspaceSlug}
+              projectKey={project.key}
+              filters={filters}
+              selected={issue.id === selectedIssue?.id}
+              onEditIssue={setEditingIssue}
+            />
+          ))}
+        </div>
+      )}
+
+      <ActionDialog
+        title="New issue"
+        description={`Create an issue in ${project.name}.`}
+        open={isCreating}
+        onOpenChange={setIsCreating}
+      >
+        <CreateIssueForm workspaceSlug={workspaceSlug} project={project} filters={filters} />
+      </ActionDialog>
+
+      <ActionDialog
+        title="Edit issue"
+        description="Double-click an issue row to update it without leaving the list."
+        open={editingIssue !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingIssue(null);
+          }
+        }}
+      >
+        {editingIssue ? (
+          <EditIssueForm
+            issue={editingIssue}
+            workspaceSlug={workspaceSlug}
+            projectKey={project.key}
+            filters={filters}
+            onCancel={() => setEditingIssue(null)}
+          />
+        ) : null}
+      </ActionDialog>
+
+      {selectedIssue ? (
+        <IssueDetailDrawer
+          issue={selectedIssue}
+          workspaceId={workspaceId}
+          workspaceLabels={workspaceLabels}
+          workspaceSlug={workspaceSlug}
+          filters={filters}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function IssueFilterBar({
+  workspaceSlug,
+  projectKey,
+  filters,
+  workspaceLabels,
+}: {
+  workspaceSlug: string;
+  projectKey: string;
+  filters: IssueFilters;
+  workspaceLabels: IssueLabelItem[];
+}) {
+  const selectedLabel = workspaceLabels.find((label) => label.id === filters.labelId);
+  const activeFilters = [
+    filters.status ? `Status: ${formatIssueStatus(filters.status)}` : null,
+    filters.priority ? `Priority: ${formatIssuePriority(filters.priority)}` : null,
+    selectedLabel ? `Label: ${selectedLabel.name}` : null,
+    filters.query ? `Search: ${filters.query}` : null,
+  ].filter(Boolean);
+  const hasActiveFilters = hasIssueFilters(filters);
+
+  return (
+    <div className="mt-5 grid gap-3 rounded-lg border border-border/55 bg-background/24 p-3">
+      <form
+        action="/app/issues"
+        method="get"
+        className="grid gap-2 lg:grid-cols-[minmax(12rem,1fr)_10rem_10rem_10rem_auto_auto] lg:items-end"
+      >
+        <input type="hidden" name="workspace" value={workspaceSlug} />
+        <input type="hidden" name="project" value={projectKey} />
+        <div className="grid gap-1.5">
+          <label htmlFor="issue-filter-query" className="text-xs font-medium text-muted-foreground">
+            Search
+          </label>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <input
+              id="issue-filter-query"
+              name="q"
+              type="search"
+              maxLength={120}
+              defaultValue={filters.query ?? ""}
+              placeholder="Title, description, or key"
+              className={cn(inputClassName, "pl-8")}
+            />
+          </div>
+        </div>
+        <FilterSelect name="status" label="Status" defaultValue={filters.status ?? ""}>
+          <option value="">Any status</option>
+          {issueStatusValues.map((status) => (
+            <option key={status} value={status}>
+              {formatIssueStatus(status)}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect name="priority" label="Priority" defaultValue={filters.priority ?? ""}>
+          <option value="">Any priority</option>
+          {issuePriorityValues.map((priority) => (
+            <option key={priority} value={priority}>
+              {formatIssuePriority(priority)}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect name="label" label="Label" defaultValue={filters.labelId ?? ""}>
+          <option value="">Any label</option>
+          {workspaceLabels.map((label) => (
+            <option key={label.id} value={label.id}>
+              {label.name}
+            </option>
+          ))}
+        </FilterSelect>
+        <Button type="submit" variant="outline">
+          Apply
+        </Button>
+        {hasActiveFilters ? (
+          <Button asChild variant="ghost">
+            <Link href={buildIssueListPath({ workspaceSlug, projectKey })}>Clear</Link>
+          </Button>
+        ) : null}
+      </form>
+      {activeFilters.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {activeFilters.map((label) => (
+            <span
+              key={label}
+              className="rounded-md border border-border/60 bg-background/45 px-2.5 py-1 text-xs text-muted-foreground"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FilterSelect({
+  name,
+  label,
+  defaultValue,
+  children,
+}: {
+  name: string;
+  label: string;
+  defaultValue: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <label htmlFor={`issue-filter-${name}`} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
+      <select
+        id={`issue-filter-${name}`}
+        name={name}
+        defaultValue={defaultValue}
+        className={inputClassName}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function CreateIssueForm({
+  workspaceSlug,
+  project,
+  filters,
+}: {
+  workspaceSlug: string;
+  project: SelectedIssueProject;
+  filters: IssueFilters;
+}) {
+  const [state, formAction] = useActionState(createIssueAction, initialState);
+
+  return (
+    <form action={formAction} className="grid gap-3">
+      <input type="hidden" name="projectId" value={project.id} />
+      <input type="hidden" name="projectKey" value={project.key} />
+      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
+      <IssueFilterHiddenFields filters={filters} />
+      <div className="grid gap-2">
+        <label htmlFor="issue-title" className="text-xs font-medium text-muted-foreground">
+          Issue title
+        </label>
+        <input
+          id="issue-title"
+          name="title"
+          type="text"
+          required
+          minLength={2}
+          maxLength={140}
+          placeholder="Add deployment checklist"
+          className={inputClassName}
+        />
+      </div>
+      <div className="grid gap-2">
+        <label htmlFor="issue-description" className="text-xs font-medium text-muted-foreground">
+          Description
+        </label>
+        <textarea
+          id="issue-description"
+          name="description"
+          maxLength={2000}
+          rows={3}
+          placeholder="Optional implementation notes."
+          className={cn(inputClassName, "h-auto resize-none py-2")}
+        />
+      </div>
+      <IssueSelectGrid />
+      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      <IssueSubmitButton label="Create issue" pendingLabel="Creating..." icon={<Plus className="size-4" />} />
+    </form>
+  );
+}
+
+function IssueRow({
+  issue,
+  workspaceSlug,
+  projectKey,
+  filters,
+  selected,
+  onEditIssue,
+}: {
+  issue: IssueListItem;
+  workspaceSlug: string;
+  projectKey: string;
+  filters: IssueFilters;
+  selected: boolean;
+  onEditIssue: (issue: IssueListItem) => void;
+}) {
+  const router = useRouter();
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const detailHref = buildIssueListPath({
+    workspaceSlug,
+    projectKey,
+    issueId: issue.id,
+    filters,
+  });
+
+  function clearPendingNavigation() {
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+  }
+
+  function handleRowClick(event: MouseEvent<HTMLDivElement>) {
+    clearPendingNavigation();
+    if (event.detail > 1) {
+      onEditIssue(issue);
+      return;
+    }
+
+    clickTimerRef.current = setTimeout(() => {
+      router.push(detailHref);
+      clickTimerRef.current = null;
+    }, 180);
+  }
+
+  return (
+    <article
+      className={cn(
+        "grid gap-4 px-5 py-3.5 transition duration-200 hover:bg-muted/12",
+        selected && "bg-muted/16",
+      )}
+    >
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div
+          role="link"
+          tabIndex={0}
+          onClick={handleRowClick}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              router.push(detailHref);
+            }
+          }}
+          className="grid min-w-0 cursor-pointer gap-2 rounded-md px-2 py-1 outline-none transition focus-visible:ring-2 focus-visible:ring-ring/26 lg:grid-cols-[5rem_minmax(0,1fr)_8rem_6rem_7rem] lg:items-center"
+        >
+          <span className="font-mono text-xs text-muted-foreground">
+            {issue.issueKey}
+          </span>
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-medium text-foreground/92">{issue.title}</h3>
+            <p className="truncate text-xs text-muted-foreground">
+              {issue.description || "No description yet."}
+            </p>
+            {issue.labels.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {issue.labels.map((label) => (
+                  <LabelPill key={label.id} label={label} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <IssueBadge>{formatIssueStatus(issue.status)}</IssueBadge>
+          <PriorityBadge priority={issue.priority} />
+          <p className="text-xs text-muted-foreground">
+            {formatDate(issue.updatedAt)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2" onClick={clearPendingNavigation}>
+          <ArchiveIssueForm
+            issueId={issue.id}
+            workspaceSlug={workspaceSlug}
+            projectKey={projectKey}
+            filters={filters}
+          />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function EditIssueForm({
+  issue,
+  workspaceSlug,
+  projectKey,
+  filters,
+  onCancel,
+  returnToIssueId,
+}: {
+  issue: IssueListItem;
+  workspaceSlug: string;
+  projectKey: string;
+  filters: IssueFilters;
+  onCancel: () => void;
+  returnToIssueId?: string;
+}) {
+  const [state, formAction] = useActionState(updateIssueAction, initialState);
+
+  return (
+    <form action={formAction} className="grid gap-3">
+      <input type="hidden" name="issueId" value={issue.id} />
+      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
+      <input type="hidden" name="projectKey" value={projectKey} />
+      <IssueFilterHiddenFields filters={filters} />
+      {returnToIssueId ? (
+        <input type="hidden" name="returnToIssueId" value={returnToIssueId} />
+      ) : null}
+      <div className="grid gap-3 lg:grid-cols-[1fr_14rem_10rem]">
+        <div className="grid gap-2">
+          <label htmlFor={`issue-title-${issue.id}`} className="text-xs font-medium text-muted-foreground">
+            Issue title
+          </label>
+          <input
+            id={`issue-title-${issue.id}`}
+            name="title"
+            type="text"
+            required
+            minLength={2}
+            maxLength={140}
+            defaultValue={issue.title}
+            className={inputClassName}
+          />
+        </div>
+        <SelectField name="status" label="Status" defaultValue={issue.status}>
+          {issueStatusValues.map((status) => (
+            <option key={status} value={status}>
+              {formatIssueStatus(status)}
+            </option>
+          ))}
+        </SelectField>
+        <SelectField name="priority" label="Priority" defaultValue={issue.priority}>
+          {issuePriorityValues.map((priority) => (
+            <option key={priority} value={priority}>
+              {formatIssuePriority(priority)}
+            </option>
+          ))}
+        </SelectField>
+      </div>
+      <div className="grid gap-2">
+        <label htmlFor={`issue-description-${issue.id}`} className="text-xs font-medium text-muted-foreground">
+          Description
+        </label>
+        <textarea
+          id={`issue-description-${issue.id}`}
+          name="description"
+          maxLength={2000}
+          rows={3}
+          defaultValue={issue.description ?? ""}
+          className={cn(inputClassName, "h-auto resize-none py-2")}
+        />
+      </div>
+      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      <div className="flex items-center gap-2">
+        <IssueSubmitButton label="Save issue" pendingLabel="Saving..." icon={<Check className="size-4" />} />
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          <X className="size-4" aria-hidden="true" />
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function IssueDetailDrawer({
+  issue,
+  workspaceId,
+  workspaceLabels,
+  workspaceSlug,
+  filters,
+}: {
+  issue: IssueDetailItem;
+  workspaceId: string;
+  workspaceLabels: IssueLabelItem[];
+  workspaceSlug: string;
+  filters: IssueFilters;
+}) {
+  const closeHref = buildIssueListPath({
+    workspaceSlug,
+    projectKey: issue.project.key,
+    filters,
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-background/70 backdrop-blur-sm">
+      <Link href={closeHref} className="absolute inset-0" aria-label="Close issue detail" />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="issue-detail-title"
+        className="relative flex h-full w-full max-w-2xl flex-col border-l border-border/70 bg-card shadow-lg shadow-black/25"
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-border/55 px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md border border-border/60 bg-background/50 px-2 py-1 font-mono text-xs text-muted-foreground">
+                {issue.issueKey}
+              </span>
+              <IssueBadge>{formatIssueStatus(issue.status)}</IssueBadge>
+              <PriorityBadge priority={issue.priority} />
+            </div>
+            <h2 id="issue-detail-title" className="mt-3 text-lg font-semibold tracking-normal">
+              {issue.title}
+            </h2>
+          </div>
+          <Button asChild variant="ghost" size="icon-sm" aria-label="Close issue detail">
+            <Link href={closeHref}>
+              <X className="size-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid gap-6">
+            <section>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                Description
+              </p>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground/85">
+                {issue.description || "No description yet."}
+              </p>
+            </section>
+
+            <dl className="grid gap-3 rounded-lg border border-border/55 bg-background/30 p-4 sm:grid-cols-2">
+              <DetailMeta label="Project" value={`${issue.project.name} (${issue.project.key})`} />
+              <DetailMeta label="Issue number" value={String(issue.issueNumber)} />
+              <DetailMeta label="Status" value={formatIssueStatus(issue.status)} />
+              <DetailMeta label="Priority" value={formatIssuePriority(issue.priority)} />
+              <DetailMeta label="Created" value={formatDate(issue.createdAt)} />
+              <DetailMeta label="Updated" value={formatDate(issue.updatedAt)} />
+            </dl>
+
+            <IssueLabelsSection
+              issue={issue}
+              workspaceId={workspaceId}
+              workspaceLabels={workspaceLabels}
+              workspaceSlug={workspaceSlug}
+              filters={filters}
+            />
+
+            <IssueCommentsSection issue={issue} workspaceSlug={workspaceSlug} filters={filters} />
+          </div>
+        </div>
+
+        <footer className="flex items-center justify-between gap-3 border-t border-border/55 px-5 py-4">
+          <p className="text-xs text-muted-foreground">
+            Double-click an issue row to edit fields.
+          </p>
+          <ArchiveIssueForm
+            issueId={issue.id}
+            workspaceSlug={workspaceSlug}
+            projectKey={issue.project.key}
+            filters={filters}
+          />
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
+function IssueLabelsSection({
+  issue,
+  workspaceId,
+  workspaceLabels,
+  workspaceSlug,
+  filters,
+}: {
+  issue: IssueDetailItem;
+  workspaceId: string;
+  workspaceLabels: IssueLabelItem[];
+  workspaceSlug: string;
+  filters: IssueFilters;
+}) {
+  const attachedIds = new Set(issue.labels.map((label) => label.id));
+  const availableLabels = workspaceLabels.filter((label) => !attachedIds.has(label.id));
+
+  return (
+    <section className="grid gap-4 border-t border-border/50 pt-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            Labels
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {issue.labels.length === 0
+              ? "No labels yet"
+              : `${issue.labels.length} ${issue.labels.length === 1 ? "label" : "labels"}`}
+          </p>
+        </div>
+        <div className="flex size-9 items-center justify-center rounded-lg border border-border/55 bg-background/45 text-muted-foreground">
+          <Tag className="size-4" aria-hidden="true" />
+        </div>
+      </div>
+
+      {issue.labels.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border/55 bg-background/30 px-4 py-4 text-sm text-muted-foreground">
+          Labels keep issue lists scannable without adding workflow complexity.
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {issue.labels.map((label) => (
+            <RemoveLabelForm
+              key={label.id}
+              issueId={issue.id}
+              label={label}
+              projectKey={issue.project.key}
+              workspaceSlug={workspaceSlug}
+              filters={filters}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="grid gap-3 rounded-lg border border-border/55 bg-background/30 p-3">
+        <AttachExistingLabelForm
+          availableLabels={availableLabels}
+          issueId={issue.id}
+          projectKey={issue.project.key}
+          workspaceSlug={workspaceSlug}
+          filters={filters}
+        />
+        <CreateLabelForm
+          issueId={issue.id}
+          projectKey={issue.project.key}
+          workspaceId={workspaceId}
+          workspaceSlug={workspaceSlug}
+          filters={filters}
+        />
+      </div>
+    </section>
+  );
+}
+
+function AttachExistingLabelForm({
+  availableLabels,
+  issueId,
+  projectKey,
+  workspaceSlug,
+  filters,
+}: {
+  availableLabels: IssueLabelItem[];
+  issueId: string;
+  projectKey: string;
+  workspaceSlug: string;
+  filters: IssueFilters;
+}) {
+  const [state, formAction] = useActionState(addLabelToIssueAction, initialLabelState);
+
+  return (
+    <form action={formAction} className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+      <input type="hidden" name="issueId" value={issueId} />
+      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
+      <input type="hidden" name="projectKey" value={projectKey} />
+      <IssueFilterHiddenFields filters={filters} />
+      <div className="grid gap-2">
+        <label htmlFor={`attach-label-${issueId}`} className="text-xs font-medium text-muted-foreground">
+          Attach existing label
+        </label>
+        <select
+          id={`attach-label-${issueId}`}
+          name="labelId"
+          required
+          disabled={availableLabels.length === 0}
+          className={inputClassName}
+          defaultValue=""
+        >
+          <option value="" disabled>
+            {availableLabels.length === 0 ? "No unattached labels" : "Choose label"}
+          </option>
+          {availableLabels.map((label) => (
+            <option key={label.id} value={label.id}>
+              {label.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <LabelSubmitButton label="Attach" pendingLabel="Attaching..." disabled={availableLabels.length === 0} />
+      {state.error ? <p className="text-sm text-destructive sm:col-span-2">{state.error}</p> : null}
+    </form>
+  );
+}
+
+function CreateLabelForm({
+  issueId,
+  projectKey,
+  workspaceId,
+  workspaceSlug,
+  filters,
+}: {
+  issueId: string;
+  projectKey: string;
+  workspaceId: string;
+  workspaceSlug: string;
+  filters: IssueFilters;
+}) {
+  const [state, formAction] = useActionState(createLabelAction, initialLabelState);
+
+  return (
+    <form action={formAction} className="grid gap-2 border-t border-border/50 pt-3">
+      <input type="hidden" name="issueId" value={issueId} />
+      <input type="hidden" name="workspaceId" value={workspaceId} />
+      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
+      <input type="hidden" name="projectKey" value={projectKey} />
+      <IssueFilterHiddenFields filters={filters} />
+      <div className="grid gap-2 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
+        <div className="grid gap-2">
+          <label htmlFor={`new-label-${issueId}`} className="text-xs font-medium text-muted-foreground">
+            New label
+          </label>
+          <input
+            id={`new-label-${issueId}`}
+            name="name"
+            type="text"
+            required
+            maxLength={32}
+            placeholder="Frontend"
+            className={inputClassName}
+          />
+        </div>
+        <div className="grid gap-2">
+          <label htmlFor={`new-label-color-${issueId}`} className="text-xs font-medium text-muted-foreground">
+            Color
+          </label>
+          <select
+            id={`new-label-color-${issueId}`}
+            name="color"
+            defaultValue="gray"
+            className={inputClassName}
+          >
+            {labelColorValues.map((color) => (
+              <option key={color} value={color}>
+                {formatLabelColor(color)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <LabelSubmitButton label="Create" pendingLabel="Creating..." />
+      </div>
+      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+    </form>
+  );
+}
+
+function RemoveLabelForm({
+  issueId,
+  label,
+  projectKey,
+  workspaceSlug,
+  filters,
+}: {
+  issueId: string;
+  label: IssueLabelItem;
+  projectKey: string;
+  workspaceSlug: string;
+  filters: IssueFilters;
+}) {
+  const [state, formAction] = useActionState(removeLabelFromIssueAction, initialLabelState);
+
+  return (
+    <form action={formAction} className="contents">
+      <input type="hidden" name="issueId" value={issueId} />
+      <input type="hidden" name="labelId" value={label.id} />
+      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
+      <input type="hidden" name="projectKey" value={projectKey} />
+      <IssueFilterHiddenFields filters={filters} />
+      <RemoveLabelButton label={label} />
+      {state.error ? <p className="sr-only">{state.error}</p> : null}
+    </form>
+  );
+}
+
+function RemoveLabelButton({ label }: { label: IssueLabelItem }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className={cn(
+        "inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs transition hover:brightness-110 disabled:opacity-60",
+        getLabelColorClass(label.color),
+      )}
+      aria-label={`Remove ${label.name} label`}
+      title={`Remove ${label.name}`}
+    >
+      {label.name}
+      <X className="size-3" aria-hidden="true" />
+    </button>
+  );
+}
+
+function LabelSubmitButton({
+  label,
+  pendingLabel,
+  disabled = false,
+}: {
+  label: string;
+  pendingLabel: string;
+  disabled?: boolean;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" size="sm" disabled={pending || disabled}>
+      {pending ? pendingLabel : label}
+    </Button>
+  );
+}
+
+function IssueCommentsSection({
+  issue,
+  workspaceSlug,
+  filters,
+}: {
+  issue: IssueDetailItem;
+  workspaceSlug: string;
+  filters: IssueFilters;
+}) {
+  return (
+    <section className="grid gap-4 border-t border-border/50 pt-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            Comments
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {issue.comments.length === 0
+              ? "No comments yet"
+              : `${issue.comments.length} ${issue.comments.length === 1 ? "comment" : "comments"}`}
+          </p>
+        </div>
+        <div className="flex size-9 items-center justify-center rounded-lg border border-border/55 bg-background/45 text-muted-foreground">
+          <MessageSquare className="size-4" aria-hidden="true" />
+        </div>
+      </div>
+
+      {issue.comments.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border/55 bg-background/30 px-4 py-5 text-sm text-muted-foreground">
+          No comments yet. Add the first note to keep discussion attached to this issue.
+        </div>
+      ) : (
+        <ol className="grid gap-3">
+          {issue.comments.map((comment) => (
+            <li
+              key={comment.id}
+              className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3 rounded-lg border border-border/55 bg-background/30 p-3"
+            >
+              <AuthorAvatar
+                name={comment.author.name}
+                imageUrl={comment.author.imageUrl}
+              />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <p className="text-sm font-medium">
+                    {comment.author.name || "SuDo user"}
+                  </p>
+                  <time
+                    dateTime={comment.createdAt}
+                    className="text-xs text-muted-foreground"
+                  >
+                    {formatDateTime(comment.createdAt)}
+                  </time>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground/85">
+                  {comment.body}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <CommentComposer
+        issueId={issue.id}
+        workspaceSlug={workspaceSlug}
+        projectKey={issue.project.key}
+        filters={filters}
+      />
+    </section>
+  );
+}
+
+function CommentComposer({
+  issueId,
+  workspaceSlug,
+  projectKey,
+  filters,
+}: {
+  issueId: string;
+  workspaceSlug: string;
+  projectKey: string;
+  filters: IssueFilters;
+}) {
+  const [state, formAction] = useActionState(createCommentAction, initialCommentState);
+
+  return (
+    <form action={formAction} className="grid gap-3">
+      <input type="hidden" name="issueId" value={issueId} />
+      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
+      <input type="hidden" name="projectKey" value={projectKey} />
+      <IssueFilterHiddenFields filters={filters} />
+      <div className="grid gap-2">
+        <label htmlFor={`comment-body-${issueId}`} className="text-xs font-medium text-muted-foreground">
+          Add comment
+        </label>
+        <textarea
+          id={`comment-body-${issueId}`}
+          name="body"
+          required
+          maxLength={2000}
+          rows={3}
+          placeholder="Leave a concise update..."
+          className={cn(inputClassName, "h-auto resize-none py-2")}
+        />
+      </div>
+      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      <div className="flex justify-end">
+        <CommentSubmitButton />
+      </div>
+    </form>
+  );
+}
+
+function CommentSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" size="sm" disabled={pending}>
+      {pending ? "Posting..." : "Post comment"}
+      <Send className="size-3.5" aria-hidden="true" />
+    </Button>
+  );
+}
+
+function AuthorAvatar({
+  name,
+  imageUrl,
+}: {
+  name: string | null;
+  imageUrl: string | null;
+}) {
+  if (imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={imageUrl}
+        alt=""
+        className="size-8 rounded-full border border-border/55 object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="flex size-8 items-center justify-center rounded-full border border-border/55 bg-muted/55 text-xs font-medium text-muted-foreground">
+      {getInitials(name)}
+    </div>
+  );
+}
+
+function getInitials(name: string | null) {
+  if (!name) {
+    return "SU";
+  }
+
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function DetailMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-sm font-medium">{value}</dd>
+    </div>
+  );
+}
+
+function IssueSelectGrid() {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <SelectField name="status" label="Status" defaultValue="todo">
+        {issueStatusValues.map((status) => (
+          <option key={status} value={status}>
+            {formatIssueStatus(status)}
+          </option>
+        ))}
+      </SelectField>
+      <SelectField name="priority" label="Priority" defaultValue="medium">
+        {issuePriorityValues.map((priority) => (
+          <option key={priority} value={priority}>
+            {formatIssuePriority(priority)}
+          </option>
+        ))}
+      </SelectField>
+    </div>
+  );
+}
+
+function SelectField({
+  name,
+  label,
+  defaultValue,
+  children,
+}: {
+  name: string;
+  label: string;
+  defaultValue: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid gap-2">
+      <label htmlFor={`${name}-${defaultValue}`} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
+      <select
+        id={`${name}-${defaultValue}`}
+        name={name}
+        defaultValue={defaultValue}
+        className={inputClassName}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function ArchiveIssueForm({
+  issueId,
+  workspaceSlug,
+  projectKey,
+  filters,
+}: {
+  issueId: string;
+  workspaceSlug: string;
+  projectKey: string;
+  filters: IssueFilters;
+}) {
+  const [state, formAction] = useActionState(archiveIssueAction, initialState);
+
+  return (
+    <form action={formAction} className="contents">
+      <input type="hidden" name="issueId" value={issueId} />
+      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
+      <input type="hidden" name="projectKey" value={projectKey} />
+      <IssueFilterHiddenFields filters={filters} />
+      <ArchiveButton />
+      {state.error ? <p className="sr-only">{state.error}</p> : null}
+    </form>
+  );
+}
+
+function IssueFilterHiddenFields({ filters }: { filters: IssueFilters }) {
+  return (
+    <>
+      {filters.status ? <input type="hidden" name="filterStatus" value={filters.status} /> : null}
+      {filters.priority ? (
+        <input type="hidden" name="filterPriority" value={filters.priority} />
+      ) : null}
+      {filters.labelId ? <input type="hidden" name="filterLabel" value={filters.labelId} /> : null}
+      {filters.query ? <input type="hidden" name="filterQ" value={filters.query} /> : null}
+    </>
+  );
+}
+
+function IssueSubmitButton({
+  label,
+  pendingLabel,
+  icon,
+}: {
+  label: string;
+  pendingLabel: string;
+  icon: ReactNode;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" disabled={pending}>
+      {pending ? pendingLabel : label}
+      {icon}
+    </Button>
+  );
+}
+
+function ArchiveButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" variant="destructive" size="sm" disabled={pending}>
+      <Archive className="size-3.5" aria-hidden="true" />
+      {pending ? "Archiving..." : "Archive"}
+    </Button>
+  );
+}
+
+function IssueBadge({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-md border border-border/60 bg-background/50 px-2.5 py-1 text-xs text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function LabelPill({ label }: { label: IssueLabelItem }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 max-w-full items-center rounded-md border px-2.5 text-xs",
+        getLabelColorClass(label.color),
+      )}
+    >
+      <span className="truncate">{label.name}</span>
+    </span>
+  );
+}
+
+function getLabelColorClass(color: string) {
+  switch (color) {
+    case "red":
+      return "border-red-500/25 bg-red-500/10 text-red-200";
+    case "orange":
+      return "border-orange-500/25 bg-orange-500/10 text-orange-200";
+    case "yellow":
+      return "border-yellow-500/25 bg-yellow-500/10 text-yellow-100";
+    case "green":
+      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
+    case "blue":
+      return "border-sky-500/25 bg-sky-500/10 text-sky-200";
+    case "purple":
+      return "border-violet-500/25 bg-violet-500/10 text-violet-200";
+    case "pink":
+      return "border-pink-500/25 bg-pink-500/10 text-pink-200";
+    case "gray":
+    default:
+      return "border-border/60 bg-background/50 text-muted-foreground";
+  }
+}
+
+function formatLabelColor(color: string) {
+  return color.charAt(0).toUpperCase() + color.slice(1);
+}
+
+function PriorityBadge({ priority }: { priority: IssuePriorityValue }) {
+  return (
+    <span
+      className={cn(
+        "rounded-md border px-2.5 py-1 text-xs",
+        priority === "urgent" && "border-destructive/30 bg-destructive/10 text-destructive",
+        priority === "high" && "border-amber-500/25 bg-amber-500/10 text-amber-200",
+        priority === "medium" && "border-accent/35 bg-accent/10 text-accent-foreground",
+        priority === "low" && "border-border/60 bg-background/50 text-muted-foreground",
+      )}
+    >
+      {formatIssuePriority(priority)}
+    </span>
+  );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+const inputClassName =
+  "h-9 w-full rounded-md border border-input/70 bg-background/58 px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/55 focus:border-ring focus:ring-2 focus:ring-ring/20";

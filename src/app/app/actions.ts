@@ -1,0 +1,98 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { requireCurrentUser } from "@/lib/auth";
+import { createDemoWorkspaceForUser } from "@/lib/demo-seed";
+import { getPrisma } from "@/lib/prisma";
+import { createWorkspaceForUser } from "@/lib/workspace";
+import { parseWorkspaceName } from "@/lib/workspace-validation";
+
+export type CreateWorkspaceState = {
+  error?: string;
+};
+
+export async function createWorkspaceAction(
+  _previousState: CreateWorkspaceState,
+  formData: FormData,
+): Promise<CreateWorkspaceState> {
+  const parsedName = parseWorkspaceName(formData.get("name"));
+  const redirectTo = formData.get("redirectTo");
+
+  if (!parsedName.success) {
+    return {
+      error: parsedName.error.issues[0]?.message ?? "Enter a valid workspace name.",
+    };
+  }
+
+  try {
+    const user = await requireCurrentUser();
+    const workspace = await createWorkspaceForUser({
+      userId: user.id,
+      name: parsedName.data,
+    });
+
+    revalidatePath("/app");
+    revalidatePath("/app/projects");
+
+    if (redirectTo === "projects") {
+      redirect(`/app/projects?workspace=${workspace.slug}`);
+    }
+
+    redirect(`/app?workspace=${workspace.slug}`);
+  } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Workspace could not be created. Check your auth and database setup.",
+    };
+  }
+}
+
+export async function createDemoWorkspaceAction(
+  _previousState: CreateWorkspaceState,
+): Promise<CreateWorkspaceState> {
+  void _previousState;
+
+  try {
+    const user = await requireCurrentUser();
+    const demo = await createDemoWorkspaceForUser({
+      prisma: getPrisma(),
+      userId: user.id,
+    });
+
+    revalidatePath("/app");
+
+    if (demo.firstProjectKey) {
+      redirect(`/app/issues?workspace=${demo.workspaceSlug}&project=${demo.firstProjectKey}`);
+    }
+
+    redirect(`/app?workspace=${demo.workspaceSlug}`);
+  } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Demo workspace could not be created. Check your auth and database setup.",
+    };
+  }
+}
+
+function isRedirectError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof error.digest === "string" &&
+    error.digest.startsWith("NEXT_REDIRECT")
+  );
+}
