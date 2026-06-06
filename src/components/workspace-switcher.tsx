@@ -34,9 +34,9 @@ export function WorkspaceSwitcher({
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-2 px-2 pb-2">
-        <p className="text-[0.68rem] font-medium uppercase tracking-[0.16em] text-sidebar-foreground/38">
-          Workspace
+      <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+        <p className="font-mono text-[0.6rem] uppercase tracking-[0.12em] text-[#62666d]">
+          Workspaces
         </p>
         <Button
           type="button"
@@ -50,24 +50,26 @@ export function WorkspaceSwitcher({
         </Button>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {workspaces.length > 0 ? (
           workspaces.map((membership) => (
             <Link
               key={membership.workspaceId}
               href={`/app/issues?workspace=${membership.workspace.slug}`}
               className={cn(
-                "flex h-9 items-center gap-2 rounded-lg px-2.5 text-sm text-sidebar-foreground/65 transition-colors hover:bg-sidebar-accent/62 hover:text-sidebar-accent-foreground",
+                "relative flex h-9 items-center gap-2 rounded-md px-2 text-sm text-[#8a8f98] transition duration-150 hover:bg-[#141517] hover:text-[#d0d6e0]",
                 currentWorkspaceId === membership.workspaceId &&
-                  "bg-sidebar-accent/78 text-sidebar-accent-foreground",
+                  "bg-[#161718] text-[#f7f8f8] before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-[#5e6ad2]",
               )}
             >
-              <CircleDashed className="size-4" aria-hidden="true" />
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-[5px] border border-[#323334] bg-[#111214]">
+                <CircleDashed className="size-3 text-[#8f99ff]" aria-hidden="true" />
+              </span>
               <span className="truncate">{membership.workspace.name}</span>
             </Link>
           ))
         ) : (
-          <p className="px-2 text-sm text-sidebar-foreground/45">No workspace yet</p>
+          <p className="px-2 py-2 text-xs text-[#62666d]">No workspace yet</p>
         )}
       </div>
 
@@ -101,7 +103,7 @@ function CreateWorkspaceForm() {
           minLength={2}
           maxLength={80}
           placeholder="Research Lab"
-          className="h-9 w-full rounded-md border border-input/70 bg-background/58 px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/55 focus:border-ring focus:ring-2 focus:ring-ring/20"
+          className="sudo-input"
         />
       </div>
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}

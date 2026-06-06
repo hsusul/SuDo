@@ -33,8 +33,20 @@ import {
   type IssueActionState,
 } from "@/app/app/issues/actions";
 import { ActionDialog } from "@/components/action-dialog";
+import { AppPanel } from "@/components/ui/app-panel";
 import { Button } from "@/components/ui/button";
 import { CountBadge } from "@/components/ui/count-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  FormSelect,
+  type FormSelectOption,
+} from "@/components/ui/form-select";
+import {
+  LabelChip,
+  PriorityBadge as PriorityTag,
+  StatusBadge as StatusTag,
+} from "@/components/ui/issue-badges";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   formatIssuePriority,
   formatIssueStatus,
@@ -122,43 +134,40 @@ export function IssuePanel({
 
   if (!project) {
     return (
-      <section className="rounded-xl border border-dashed border-border/60 bg-card/58 p-8 text-center">
-        <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-lg border border-border/55 bg-background/60 text-muted-foreground">
-          <CircleDot className="size-5" aria-hidden="true" />
-        </div>
-        <h2 className="text-lg font-medium">Create a project to track issues</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-          Issues are scoped to projects. Add an active project first, then
-          capture the first task here.
-        </p>
-        <Button asChild className="mt-5">
-          <Link href={`/app/projects?workspace=${workspaceSlug}`}>
-            <Plus className="size-4" aria-hidden="true" />
-            Create project
-          </Link>
-        </Button>
-      </section>
+      <AppPanel className="p-3">
+        <EmptyState
+          icon={<CircleDot className="size-5" aria-hidden="true" />}
+          title="Create a project to track issues"
+          description="Issues are scoped to projects. Add an active project first, then capture the first task here."
+          action={
+            <Button asChild>
+              <Link href={`/app/projects?workspace=${workspaceSlug}`}>
+                <Plus className="size-4" aria-hidden="true" />
+                Create project
+              </Link>
+            </Button>
+          }
+        />
+      </AppPanel>
     );
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border/70 bg-card/82">
-      <div className="border-b border-border/55 p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/85">
-              Issues
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold tracking-normal">{project.name}</h2>
-              <span className="rounded-md border border-border/60 bg-background/50 px-2 py-1 font-mono text-xs text-muted-foreground">
-                {project.key}
-              </span>
-            </div>
-            <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="grid gap-6">
+      <PageHeader
+        eyebrow="Issues"
+        title={project.name}
+        description="Scan the active pipeline, narrow the list, and open an issue for full context."
+        metadata={
+          <>
+            <span className="rounded-[4px] border border-[#323334] bg-[#161718] px-2 py-1 font-mono text-[0.68rem] text-[#8a8f98]">
+              {project.key}
+            </span>
+            <span className="flex items-center gap-1.5 font-mono text-[0.66rem] uppercase text-[#62666d]">
               <CountBadge
                 count={issues.length}
                 label={hasActiveFilters ? "matching issue" : "active issue"}
+                className={plainCountClassName}
               />
               <span>
                 {hasActiveFilters
@@ -169,91 +178,97 @@ export function IssuePanel({
                     ? "active issue"
                     : "active issues"}
               </span>
-            </div>
-          </div>
-          <Button
-            type="button"
-            size="icon"
-            aria-label="Create issue"
-            title="Create issue"
-            onClick={() => setIsCreating(true)}
-          >
+            </span>
+          </>
+        }
+        actions={
+          <Button type="button" onClick={() => setIsCreating(true)}>
             <Plus className="size-4" aria-hidden="true" />
+            New issue
           </Button>
-        </div>
-        {projects.length > 1 ? (
-          <div className="mt-4 flex flex-wrap gap-2">
+        }
+      />
+
+      {projects.length > 1 ? (
+        <div className="flex gap-1 overflow-x-auto border-b border-border pb-3">
             {projects.map((item) => (
               <Link
                 key={item.id}
                 href={`/app/issues?workspace=${workspaceSlug}&project=${item.key}`}
                 className={cn(
-                  "rounded-md border px-2.5 py-1.5 text-xs transition hover:bg-muted/55",
+                  "shrink-0 rounded-md border px-3 py-2 text-xs transition duration-150",
                   item.id === project.id
-                    ? "border-border/70 bg-muted/55 text-foreground"
-                    : "border-transparent bg-background/35 text-muted-foreground",
+                    ? "border-[#323334] bg-[#161718] text-foreground"
+                    : "border-transparent text-[#8a8f98] hover:bg-[#141517] hover:text-[#d0d6e0]",
                 )}
               >
-                {item.key}
+                <span className="mr-2 font-mono text-[#62666d]">{item.key}</span>
+                {item.name}
               </Link>
             ))}
           </div>
-        ) : null}
+      ) : null}
+
+      <AppPanel>
         <IssueFilterBar
           workspaceSlug={workspaceSlug}
           projectKey={project.key}
           filters={filters}
           workspaceLabels={workspaceLabels}
         />
-      </div>
 
-      {issues.length === 0 ? (
-        <div className="p-6">
-          <div className="rounded-lg border border-dashed border-border/55 bg-background/28 p-8 text-center">
-            <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-lg border border-border/55 bg-muted/40 text-muted-foreground">
-              <CircleDot className="size-5" aria-hidden="true" />
-            </div>
-            <h3 className="text-base font-medium">
-              {hasActiveFilters ? "No matching issues" : "No issues in this project"}
-            </h3>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              {hasActiveFilters
+        {issues.length === 0 ? (
+          <div className="p-3">
+            <EmptyState
+              icon={<CircleDot className="size-5" aria-hidden="true" />}
+              title={hasActiveFilters ? "No matching issues" : "No issues in this project"}
+              description={
+                hasActiveFilters
                 ? "Try a different search or clear filters to return to the active issue list."
-                : "Create the first issue with a clear title, starting status, and priority."}
-            </p>
-            {hasActiveFilters ? (
-              <Button asChild className="mt-5" variant="outline">
-                <Link href={buildIssueListPath({ workspaceSlug, projectKey: project.key })}>
-                  Clear filters
-                </Link>
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                className="mt-5"
-                onClick={() => setIsCreating(true)}
-              >
-                <Plus className="size-4" aria-hidden="true" />
-                Create issue
-              </Button>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="divide-y divide-border/45">
-          {issues.map((issue) => (
-            <IssueRow
-              key={issue.id}
-              issue={issue}
-              workspaceSlug={workspaceSlug}
-              projectKey={project.key}
-              filters={filters}
-              selected={issue.id === selectedIssue?.id}
-              onEditIssue={setEditingIssue}
+                : "Create the first issue with a clear title, starting status, and priority."
+              }
+              action={
+                hasActiveFilters ? (
+                  <Button asChild variant="outline">
+                    <Link href={buildIssueListPath({ workspaceSlug, projectKey: project.key })}>
+                      Clear filters
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button type="button" onClick={() => setIsCreating(true)}>
+                    <Plus className="size-4" aria-hidden="true" />
+                    Create issue
+                  </Button>
+                )
+              }
             />
-          ))}
-        </div>
-      )}
+          </div>
+        ) : (
+          <>
+            <div className="hidden grid-cols-[5rem_minmax(15rem,1fr)_8rem_6rem_7rem_5rem] border-b border-border bg-[#0c0d0e] px-5 py-2.5 font-mono text-[0.6rem] uppercase text-[#62666d] lg:grid">
+              <span>ID</span>
+              <span>Issue</span>
+              <span>Status</span>
+              <span>Priority</span>
+              <span>Updated</span>
+              <span className="text-right">Action</span>
+            </div>
+            <div className="divide-y divide-border">
+              {issues.map((issue) => (
+                <IssueRow
+                  key={issue.id}
+                  issue={issue}
+                  workspaceSlug={workspaceSlug}
+                  projectKey={project.key}
+                  filters={filters}
+                  selected={issue.id === selectedIssue?.id}
+                  onEditIssue={setEditingIssue}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </AppPanel>
 
       <ActionDialog
         title="New issue"
@@ -294,7 +309,7 @@ export function IssuePanel({
           filters={filters}
         />
       ) : null}
-    </section>
+    </div>
   );
 }
 
@@ -319,7 +334,7 @@ function IssueFilterBar({
   const hasActiveFilters = hasIssueFilters(filters);
 
   return (
-    <div className="mt-5 grid gap-3 rounded-lg border border-border/55 bg-background/24 p-3">
+    <div className="grid gap-3 border-b border-border bg-[#0c0d0e] p-4 sm:p-5">
       <form
         action="/app/issues"
         method="get"
@@ -343,34 +358,49 @@ function IssueFilterBar({
               maxLength={120}
               defaultValue={filters.query ?? ""}
               placeholder="Title, description, or key"
-              className={cn(inputClassName, "pl-8")}
+              className={cn(inputClassName, "!pl-9")}
             />
           </div>
         </div>
-        <FilterSelect name="status" label="Status" defaultValue={filters.status ?? ""}>
-          <option value="">Any status</option>
-          {issueStatusValues.map((status) => (
-            <option key={status} value={status}>
-              {formatIssueStatus(status)}
-            </option>
-          ))}
-        </FilterSelect>
-        <FilterSelect name="priority" label="Priority" defaultValue={filters.priority ?? ""}>
-          <option value="">Any priority</option>
-          {issuePriorityValues.map((priority) => (
-            <option key={priority} value={priority}>
-              {formatIssuePriority(priority)}
-            </option>
-          ))}
-        </FilterSelect>
-        <FilterSelect name="label" label="Label" defaultValue={filters.labelId ?? ""}>
-          <option value="">Any label</option>
-          {workspaceLabels.map((label) => (
-            <option key={label.id} value={label.id}>
-              {label.name}
-            </option>
-          ))}
-        </FilterSelect>
+        <FilterSelect
+          name="status"
+          label="Status"
+          defaultValue={filters.status ?? ""}
+          options={[
+            { value: "", label: "Any status" },
+            ...issueStatusValues.map((status) => ({
+              value: status,
+              label: formatIssueStatus(status),
+              swatch: getStatusFilterColor(status),
+            })),
+          ]}
+        />
+        <FilterSelect
+          name="priority"
+          label="Priority"
+          defaultValue={filters.priority ?? ""}
+          options={[
+            { value: "", label: "Any priority" },
+            ...issuePriorityValues.map((priority) => ({
+              value: priority,
+              label: formatIssuePriority(priority),
+              swatch: getPriorityFilterColor(priority),
+            })),
+          ]}
+        />
+        <FilterSelect
+          name="label"
+          label="Label"
+          defaultValue={filters.labelId ?? ""}
+          options={[
+            { value: "", label: "Any label" },
+            ...workspaceLabels.map((label) => ({
+              value: label.id,
+              label: label.name,
+              swatch: getLabelHex(label.color),
+            })),
+          ]}
+        />
         <Button type="submit" variant="outline">
           Apply
         </Button>
@@ -383,10 +413,7 @@ function IssueFilterBar({
       {activeFilters.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {activeFilters.map((label) => (
-            <span
-              key={label}
-              className="rounded-md border border-border/60 bg-background/45 px-2.5 py-1 text-xs text-muted-foreground"
-            >
+            <span key={label} className="rounded-[4px] border border-[#323334] bg-[#161718] px-2 py-1 text-xs text-[#8a8f98]">
               {label}
             </span>
           ))}
@@ -400,26 +427,24 @@ function FilterSelect({
   name,
   label,
   defaultValue,
-  children,
+  options,
 }: {
   name: string;
   label: string;
   defaultValue: string;
-  children: ReactNode;
+  options: FormSelectOption[];
 }) {
   return (
     <div className="grid gap-1.5">
       <label htmlFor={`issue-filter-${name}`} className="text-xs font-medium text-muted-foreground">
         {label}
       </label>
-      <select
+      <FormSelect
         id={`issue-filter-${name}`}
         name={name}
         defaultValue={defaultValue}
-        className={inputClassName}
-      >
-        {children}
-      </select>
+        options={options}
+      />
     </div>
   );
 }
@@ -466,7 +491,7 @@ function CreateIssueForm({
           maxLength={2000}
           rows={3}
           placeholder="Optional implementation notes."
-          className={cn(inputClassName, "h-auto resize-none py-2")}
+          className="sudo-textarea"
         />
       </div>
       <IssueSelectGrid />
@@ -523,11 +548,12 @@ function IssueRow({
   return (
     <article
       className={cn(
-        "grid gap-4 px-5 py-3.5 transition duration-200 hover:bg-muted/12",
-        selected && "bg-muted/16",
+        "group relative px-5 py-3 transition duration-150 hover:bg-[#141517]",
+        selected &&
+          "bg-[#121315] before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-[#5e6ad2]",
       )}
     >
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_5rem] lg:items-center">
         <div
           role="link"
           tabIndex={0}
@@ -538,31 +564,31 @@ function IssueRow({
               router.push(detailHref);
             }
           }}
-          className="grid min-w-0 cursor-pointer gap-2 rounded-md px-2 py-1 outline-none transition focus-visible:ring-2 focus-visible:ring-ring/26 lg:grid-cols-[5rem_minmax(0,1fr)_8rem_6rem_7rem] lg:items-center"
+          className="grid min-w-0 cursor-pointer gap-2 rounded-md outline-none transition focus-visible:ring-2 focus-visible:ring-ring/30 lg:grid-cols-[5rem_minmax(0,1fr)_8rem_6rem_7rem] lg:items-center"
         >
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-[0.68rem] text-[#62666d]">
             {issue.issueKey}
           </span>
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-medium text-foreground/92">{issue.title}</h3>
-            <p className="truncate text-xs text-muted-foreground">
+            <h3 className="truncate text-sm font-medium text-[#d0d6e0]">{issue.title}</h3>
+            <p className="mt-0.5 truncate text-xs text-[#62666d]">
               {issue.description || "No description yet."}
             </p>
             {issue.labels.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {issue.labels.map((label) => (
                   <LabelPill key={label.id} label={label} />
                 ))}
               </div>
             ) : null}
           </div>
-          <IssueBadge>{formatIssueStatus(issue.status)}</IssueBadge>
-          <PriorityBadge priority={issue.priority} />
-          <p className="text-xs text-muted-foreground">
+          <StatusTag status={issue.status} label={formatIssueStatus(issue.status)} />
+          <PriorityTag priority={issue.priority} label={formatIssuePriority(issue.priority)} />
+          <p className="font-mono text-[0.64rem] text-[#62666d]">
             {formatDate(issue.updatedAt)}
           </p>
         </div>
-        <div className="flex items-center gap-2" onClick={clearPendingNavigation}>
+        <div className="flex items-center justify-end gap-2" onClick={clearPendingNavigation}>
           <ArchiveIssueForm
             issueId={issue.id}
             workspaceSlug={workspaceSlug}
@@ -642,7 +668,7 @@ function EditIssueForm({
           maxLength={2000}
           rows={3}
           defaultValue={issue.description ?? ""}
-          className={cn(inputClassName, "h-auto resize-none py-2")}
+          className="sudo-textarea"
         />
       </div>
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
@@ -677,24 +703,24 @@ function IssueDetailDrawer({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-background/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0">
       <Link href={closeHref} className="absolute inset-0" aria-label="Close issue detail" />
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="issue-detail-title"
-        className="relative flex h-full w-full max-w-2xl flex-col border-l border-border/70 bg-card shadow-lg shadow-black/25"
+        className="relative flex h-full w-full max-w-[42rem] flex-col overflow-hidden border-l border-[#323334] bg-[#0f1011] shadow-[-30px_0_90px_rgb(0_0_0_/_48%)] motion-safe:animate-in motion-safe:slide-in-from-right-8"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-border/55 px-5 py-4">
+        <header className="flex items-start justify-between gap-4 border-b border-border bg-[#121315] px-5 py-5 sm:px-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-md border border-border/60 bg-background/50 px-2 py-1 font-mono text-xs text-muted-foreground">
+              <span className="rounded-[4px] border border-[#323334] bg-[#161718] px-2 py-1 font-mono text-[0.68rem] text-[#8a8f98]">
                 {issue.issueKey}
               </span>
-              <IssueBadge>{formatIssueStatus(issue.status)}</IssueBadge>
-              <PriorityBadge priority={issue.priority} />
+              <StatusTag status={issue.status} label={formatIssueStatus(issue.status)} />
+              <PriorityTag priority={issue.priority} label={formatIssuePriority(issue.priority)} />
             </div>
-            <h2 id="issue-detail-title" className="mt-3 text-lg font-semibold tracking-normal">
+            <h2 id="issue-detail-title" className="mt-3 text-xl font-semibold tracking-[-0.02em] sm:text-2xl">
               {issue.title}
             </h2>
           </div>
@@ -705,18 +731,16 @@ function IssueDetailDrawer({
           </Button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
           <div className="grid gap-6">
             <section>
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                Description
-              </p>
+              <p className="sudo-kicker">Description</p>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground/85">
                 {issue.description || "No description yet."}
               </p>
             </section>
 
-            <dl className="grid gap-3 rounded-lg border border-border/55 bg-background/30 p-4 sm:grid-cols-2">
+            <dl className="grid gap-0 overflow-hidden rounded-md border border-border bg-[#0c0d0e] sm:grid-cols-2">
               <DetailMeta label="Project" value={`${issue.project.name} (${issue.project.key})`} />
               <DetailMeta label="Issue number" value={String(issue.issueNumber)} />
               <DetailMeta label="Status" value={formatIssueStatus(issue.status)} />
@@ -737,8 +761,8 @@ function IssueDetailDrawer({
           </div>
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-border/55 px-5 py-4">
-          <p className="text-xs text-muted-foreground">
+        <footer className="flex items-center justify-between gap-3 border-t border-border bg-[#121315] px-5 py-4 sm:px-6">
+          <p className="text-xs text-[#62666d]">
             Double-click an issue row to edit fields.
           </p>
           <ArchiveIssueForm
@@ -773,22 +797,20 @@ function IssueLabelsSection({
     <section className="grid gap-4 border-t border-border/50 pt-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            Labels
-          </p>
+          <p className="sudo-kicker">Labels</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {issue.labels.length === 0
               ? "No labels yet"
               : `${issue.labels.length} ${issue.labels.length === 1 ? "label" : "labels"}`}
           </p>
         </div>
-        <div className="flex size-9 items-center justify-center rounded-lg border border-border/55 bg-background/45 text-muted-foreground">
+        <div className="flex size-9 items-center justify-center rounded-md border border-border/55 bg-background/45 text-muted-foreground">
           <Tag className="size-4" aria-hidden="true" />
         </div>
       </div>
 
       {issue.labels.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border/55 bg-background/30 px-4 py-4 text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-border/55 bg-background/32 px-4 py-4 text-sm text-muted-foreground">
           Labels keep issue lists scannable without adding workflow complexity.
         </div>
       ) : (
@@ -806,7 +828,7 @@ function IssueLabelsSection({
         </div>
       )}
 
-      <div className="grid gap-3 rounded-lg border border-border/55 bg-background/30 p-3">
+      <div className="grid gap-3 rounded-md border border-border bg-[#0c0d0e] p-3">
         <AttachExistingLabelForm
           availableLabels={availableLabels}
           issueId={issue.id}
@@ -1015,22 +1037,20 @@ function IssueCommentsSection({
     <section className="grid gap-4 border-t border-border/50 pt-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            Comments
-          </p>
+          <p className="sudo-kicker">Comments</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {issue.comments.length === 0
               ? "No comments yet"
               : `${issue.comments.length} ${issue.comments.length === 1 ? "comment" : "comments"}`}
           </p>
         </div>
-        <div className="flex size-9 items-center justify-center rounded-lg border border-border/55 bg-background/45 text-muted-foreground">
+        <div className="flex size-9 items-center justify-center rounded-md border border-border/55 bg-background/45 text-muted-foreground">
           <MessageSquare className="size-4" aria-hidden="true" />
         </div>
       </div>
 
       {issue.comments.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border/55 bg-background/30 px-4 py-5 text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-border/55 bg-background/32 px-4 py-5 text-sm text-muted-foreground">
           No comments yet. Add the first note to keep discussion attached to this issue.
         </div>
       ) : (
@@ -1038,7 +1058,7 @@ function IssueCommentsSection({
           {issue.comments.map((comment) => (
             <li
               key={comment.id}
-              className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3 rounded-lg border border-border/55 bg-background/30 p-3"
+              className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3 rounded-md border border-border bg-[#0c0d0e] p-3"
             >
               <AuthorAvatar
                 name={comment.author.name}
@@ -1105,7 +1125,7 @@ function CommentComposer({
           maxLength={2000}
           rows={3}
           placeholder="Leave a concise update..."
-          className={cn(inputClassName, "h-auto resize-none py-2")}
+          className="sudo-textarea"
         />
       </div>
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
@@ -1167,9 +1187,9 @@ function getInitials(name: string | null) {
 
 function DetailMeta({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-sm font-medium">{value}</dd>
+    <div className="border-b border-border p-3 last:border-b-0 sm:border-r sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(2n)]:border-r-0">
+      <dt className="font-mono text-[0.6rem] uppercase text-[#62666d]">{label}</dt>
+      <dd className="mt-1.5 text-sm font-medium text-[#d0d6e0]">{value}</dd>
     </div>
   );
 }
@@ -1284,53 +1304,68 @@ function ArchiveButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant="destructive" size="sm" disabled={pending}>
+    <Button
+      type="submit"
+      variant="outline"
+      size="sm"
+      disabled={pending}
+      className="text-[#8a8f98] hover:border-destructive/35 hover:text-[#ff8585]"
+    >
       <Archive className="size-3.5" aria-hidden="true" />
       {pending ? "Archiving..." : "Archive"}
     </Button>
   );
 }
 
-function IssueBadge({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded-md border border-border/60 bg-background/50 px-2.5 py-1 text-xs text-muted-foreground">
-      {children}
-    </span>
-  );
+function LabelPill({ label }: { label: IssueLabelItem }) {
+  return <LabelChip name={label.name} color={getLabelHex(label.color)} />;
 }
 
-function LabelPill({ label }: { label: IssueLabelItem }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-6 max-w-full items-center rounded-md border px-2.5 text-xs",
-        getLabelColorClass(label.color),
-      )}
-    >
-      <span className="truncate">{label.name}</span>
-    </span>
-  );
+function getStatusFilterColor(status: IssueStatusValue) {
+  switch (status) {
+    case "backlog":
+      return "#62666d";
+    case "todo":
+      return "#5e6ad2";
+    case "in_progress":
+      return "#02b8cc";
+    case "done":
+      return "#27a644";
+  }
+}
+
+function getPriorityFilterColor(priority: IssuePriorityValue) {
+  switch (priority) {
+    case "low":
+      return "#62666d";
+    case "medium":
+      return "#02b8cc";
+    case "high":
+      return "#e4f222";
+    case "urgent":
+      return "#eb5757";
+  }
 }
 
 function getLabelColorClass(color: string) {
   switch (color) {
     case "red":
-      return "border-red-500/25 bg-red-500/10 text-red-200";
+      return "border-red-400/25 bg-red-400/10 text-red-100";
     case "orange":
-      return "border-orange-500/25 bg-orange-500/10 text-orange-200";
+      return "border-orange-400/25 bg-orange-400/10 text-orange-100";
     case "yellow":
-      return "border-yellow-500/25 bg-yellow-500/10 text-yellow-100";
+      return "border-yellow-300/25 bg-yellow-300/10 text-yellow-100";
     case "green":
-      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
+      return "border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
     case "blue":
-      return "border-sky-500/25 bg-sky-500/10 text-sky-200";
+      return "border-sky-300/25 bg-sky-300/10 text-sky-100";
     case "purple":
-      return "border-violet-500/25 bg-violet-500/10 text-violet-200";
+      return "border-violet-300/25 bg-violet-300/10 text-violet-100";
     case "pink":
-      return "border-pink-500/25 bg-pink-500/10 text-pink-200";
+      return "border-pink-300/25 bg-pink-300/10 text-pink-100";
     case "gray":
     default:
-      return "border-border/60 bg-background/50 text-muted-foreground";
+      return "border-white/10 bg-white/[0.055] text-muted-foreground";
   }
 }
 
@@ -1338,20 +1373,25 @@ function formatLabelColor(color: string) {
   return color.charAt(0).toUpperCase() + color.slice(1);
 }
 
-function PriorityBadge({ priority }: { priority: IssuePriorityValue }) {
-  return (
-    <span
-      className={cn(
-        "rounded-md border px-2.5 py-1 text-xs",
-        priority === "urgent" && "border-destructive/30 bg-destructive/10 text-destructive",
-        priority === "high" && "border-amber-500/25 bg-amber-500/10 text-amber-200",
-        priority === "medium" && "border-accent/35 bg-accent/10 text-accent-foreground",
-        priority === "low" && "border-border/60 bg-background/50 text-muted-foreground",
-      )}
-    >
-      {formatIssuePriority(priority)}
-    </span>
-  );
+function getLabelHex(color: string) {
+  switch (color) {
+    case "red":
+      return "#eb5757";
+    case "orange":
+      return "#f2994a";
+    case "yellow":
+      return "#e4f222";
+    case "green":
+      return "#27a644";
+    case "blue":
+      return "#02b8cc";
+    case "purple":
+      return "#8f99ff";
+    case "pink":
+      return "#ec6fb5";
+    default:
+      return "#62666d";
+  }
 }
 
 function formatDate(value: string) {
@@ -1371,5 +1411,6 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-const inputClassName =
-  "h-9 w-full rounded-md border border-input/70 bg-background/58 px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/55 focus:border-ring focus:ring-2 focus:ring-ring/20";
+const inputClassName = "sudo-input";
+const plainCountClassName =
+  "h-auto min-w-0 rounded-none border-0 bg-transparent px-0 text-[0.72rem] text-muted-foreground/72";

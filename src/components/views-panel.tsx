@@ -2,8 +2,12 @@ import Link from "next/link";
 import { ArrowRight, Layers3, ListFilter, Tags, Zap } from "lucide-react";
 import type { ProjectViewSummary } from "@/lib/view";
 import { buildIssueViewHref } from "@/lib/view-definitions";
+import { AppPanel, AppPanelHeader } from "@/components/ui/app-panel";
 import { Button } from "@/components/ui/button";
 import { CountBadge } from "@/components/ui/count-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { cn } from "@/lib/utils";
 
 export type ViewsProjectItem = {
   id: string;
@@ -26,20 +30,13 @@ export function ViewsPanel({
     projects.find((project) => project.key === selectedProjectKey) ?? projects[0] ?? null;
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border/70 bg-card/82">
-      <div className="border-b border-border/55 p-5">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/85">
-          Views
-        </p>
-        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold tracking-normal">Issue shortcuts</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Views are shortcuts into your issue list. They use the existing project
-              filters instead of a saved custom views system.
-            </p>
-          </div>
-          {selectedProject ? (
+    <div className="grid gap-6">
+      <PageHeader
+        eyebrow="Views"
+        title="Issue shortcuts"
+        description="Jump into useful slices of the existing issue pipeline without introducing a separate saved-view system."
+        actions={
+          selectedProject ? (
             <Button asChild variant="outline">
               <Link
                 href={buildIssueViewHref({
@@ -51,81 +48,79 @@ export function ViewsPanel({
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
             </Button>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {projects.length === 0 || !selectedProject || !summary ? (
-        <div className="p-6">
-          <div className="rounded-lg border border-dashed border-border/55 bg-background/28 p-8 text-center">
-            <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-lg border border-border/55 bg-muted/40 text-muted-foreground">
-              <Layers3 className="size-5" aria-hidden="true" />
-            </div>
-            <h3 className="text-base font-medium">No views yet</h3>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              Create a project first. Views are generated from a project&apos;s active
-              issues, priorities, and labels.
-            </p>
-            <Button asChild className="mt-5">
-              <Link href={`/app/projects?workspace=${workspaceSlug}`}>Create project</Link>
-            </Button>
-          </div>
-        </div>
+        <AppPanel className="p-3">
+          <EmptyState
+            icon={<Layers3 className="size-5" aria-hidden="true" />}
+            title="No views yet"
+            description="Create a project first. Views are generated from a project's active issues, priorities, and labels."
+            action={
+              <Button asChild>
+                <Link href={`/app/projects?workspace=${workspaceSlug}`}>Create project</Link>
+              </Button>
+            }
+          />
+        </AppPanel>
       ) : (
-        <div className="grid gap-5 p-5">
+        <>
           {projects.length > 1 ? (
-            <div className="rounded-lg border border-border/55 bg-background/28 p-3">
-              <p className="px-1 text-xs font-medium text-muted-foreground">Project context</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {projects.map((project) => (
-                  <Link
-                    key={project.id}
-                    href={`/app/views?workspace=${workspaceSlug}&project=${project.key}`}
-                    className={
-                      project.key === selectedProject.key
-                        ? "rounded-md border border-border/70 bg-muted/65 px-3 py-1.5 text-xs font-medium text-foreground"
-                        : "rounded-md border border-border/45 bg-background/40 px-3 py-1.5 text-xs text-muted-foreground transition hover:border-border/70 hover:text-foreground"
-                    }
-                  >
-                    {project.name}
-                  </Link>
-                ))}
-              </div>
+            <div className="flex gap-1 overflow-x-auto border-b border-border pb-3">
+              {projects.map((project) => (
+                <Link
+                  key={project.id}
+                  href={`/app/views?workspace=${workspaceSlug}&project=${project.key}`}
+                  className={cn(
+                    "shrink-0 rounded-md border px-3 py-2 text-xs transition duration-150",
+                    project.key === selectedProject.key
+                      ? "border-[#323334] bg-[#161718] text-foreground"
+                      : "border-transparent text-[#8a8f98] hover:bg-[#141517] hover:text-[#d0d6e0]",
+                  )}
+                >
+                  <span className="mr-2 font-mono text-[#62666d]">{project.key}</span>
+                  {project.name}
+                </Link>
+              ))}
             </div>
           ) : null}
 
-          <ViewGroup
-            title="Core views"
-            icon={<ListFilter className="size-4" aria-hidden="true" />}
-            views={summary.systemViews}
-            workspaceSlug={workspaceSlug}
-            projectKey={selectedProject.key}
-          />
-          <ViewGroup
-            title="Status views"
-            icon={<Layers3 className="size-4" aria-hidden="true" />}
-            views={summary.statusViews}
-            workspaceSlug={workspaceSlug}
-            projectKey={selectedProject.key}
-          />
-          <ViewGroup
-            title="Priority views"
-            icon={<Zap className="size-4" aria-hidden="true" />}
-            views={summary.priorityViews}
-            workspaceSlug={workspaceSlug}
-            projectKey={selectedProject.key}
-          />
-          <ViewGroup
-            title="Label views"
-            icon={<Tags className="size-4" aria-hidden="true" />}
-            views={summary.labelViews}
-            workspaceSlug={workspaceSlug}
-            projectKey={selectedProject.key}
-            emptyText="Create labels on issue details to unlock label shortcuts."
-          />
-        </div>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <ViewGroup
+              title="Core views"
+              icon={<ListFilter className="size-4" aria-hidden="true" />}
+              views={summary.systemViews}
+              workspaceSlug={workspaceSlug}
+              projectKey={selectedProject.key}
+            />
+            <ViewGroup
+              title="Status views"
+              icon={<Layers3 className="size-4" aria-hidden="true" />}
+              views={summary.statusViews}
+              workspaceSlug={workspaceSlug}
+              projectKey={selectedProject.key}
+            />
+            <ViewGroup
+              title="Priority views"
+              icon={<Zap className="size-4" aria-hidden="true" />}
+              views={summary.priorityViews}
+              workspaceSlug={workspaceSlug}
+              projectKey={selectedProject.key}
+            />
+            <ViewGroup
+              title="Label views"
+              icon={<Tags className="size-4" aria-hidden="true" />}
+              views={summary.labelViews}
+              workspaceSlug={workspaceSlug}
+              projectKey={selectedProject.key}
+              emptyText="Create labels on issue details to unlock label shortcuts."
+            />
+          </div>
+        </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -153,17 +148,22 @@ function ViewGroup({
   emptyText?: string;
 }) {
   return (
-    <div>
-      <div className="mb-2 flex items-center gap-2 px-1 text-sm font-medium text-muted-foreground">
-        {icon}
-        <h3>{title}</h3>
-      </div>
+    <AppPanel>
+      <AppPanelHeader className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[#d0d6e0]">
+          <span className="text-[#8f99ff]">{icon}</span>
+          <h2 className="text-sm font-medium">{title}</h2>
+        </div>
+        <span className="font-mono text-[0.62rem] uppercase text-[#62666d]">
+          {views.length} shortcuts
+        </span>
+      </AppPanelHeader>
       {views.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border/45 bg-background/24 p-4 text-sm text-muted-foreground">
+        <p className="m-4 border border-dashed border-[#323334] p-5 text-sm text-[#8a8f98]">
           {emptyText ?? "No shortcuts available yet."}
         </p>
       ) : (
-        <div className="grid gap-2 md:grid-cols-2">
+        <div className="divide-y divide-border">
           {views.map((view) => (
             <Link
               key={view.id}
@@ -174,21 +174,22 @@ function ViewGroup({
                 priority: view.priority,
                 labelId: view.labelId,
               })}
-              className="group rounded-lg border border-border/55 bg-background/30 p-4 transition hover:border-border/80 hover:bg-muted/28"
+              className="group grid min-h-20 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-3 transition duration-150 hover:bg-[#141517]"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{view.title}</p>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                    {view.description}
-                  </p>
-                </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-[#d0d6e0]">{view.title}</p>
+                <p className="mt-1 line-clamp-1 text-xs text-[#8a8f98]">
+                  {view.description}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
                 <CountBadge count={view.count} label="matching issue" />
+                <ArrowRight className="size-3.5 text-[#62666d] transition group-hover:translate-x-0.5 group-hover:text-[#aeb5ff]" />
               </div>
             </Link>
           ))}
         </div>
       )}
-    </div>
+    </AppPanel>
   );
 }

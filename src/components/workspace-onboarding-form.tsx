@@ -18,13 +18,10 @@ export function WorkspaceOnboardingForm() {
 
   return (
     <div className="mt-6 grid gap-3">
-      <form
-        action={demoFormAction}
-        className="rounded-lg border border-accent/20 bg-accent/8 p-4"
-      >
+      <form action={demoFormAction} className="rounded-lg border border-accent/20 bg-accent/8 p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-accent/20 bg-accent/12 text-accent-foreground">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-accent/20 bg-accent/12 text-accent-foreground">
               <Sparkles className="size-4" aria-hidden="true" />
             </div>
             <div>
@@ -62,7 +59,7 @@ export function WorkspaceOnboardingForm() {
               minLength={2}
               maxLength={80}
               placeholder="Blank workspace name"
-              className="h-10 w-full rounded-md border border-input/70 bg-background/58 px-3 pl-8 text-sm outline-none transition placeholder:text-muted-foreground/55 focus:border-ring focus:ring-2 focus:ring-ring/20"
+              className="sudo-input h-10 pl-8"
             />
           </div>
           {state.error ? (

@@ -1,8 +1,12 @@
 # SuDo
 
-SuDo is a Linear-inspired issue tracker and lightweight project management app for solo builders, student developers, hackathon teams, and small technical teams. The product direction is calm, focused, premium, and minimal: a polished SaaS workflow without enterprise project-management complexity.
+SuDo is a focused issue tracker and workspace command deck for solo builders, student developers, hackathon teams, and small technical teams. It combines workspace-scoped project management with a compact, dark productivity interface inspired by the clarity and speed of tools such as Linear and Raycast.
 
-Current status: authenticated workspace, project, basic issue, issue detail, comment, label, filter, lightweight search, built-in views, account-only settings, and authenticated demo workspace foundation. The app has a Next.js foundation, Clerk wiring, local user sync, workspace creation, workspace membership, workspace-scoped project create/edit/archive, project-scoped issue create/edit/archive, a focused issue detail drawer, issue comments, issue labels, URL-backed issue filters/search, URL-backed built-in views with count badges, a workspace-aware shell, dedicated project/issue/view/settings pages, Prisma schema, shadcn/ui setup, production env documentation, and a seeded demo generator for synced users. Product features such as kanban, saved custom views, activity logs, teams/invites, billing, notifications, workspace deletion, and shared demo reset are intentionally not implemented yet.
+![SuDo landing page](docs/images/sudo-landing.png)
+
+The current product includes authenticated workspaces, projects, issues, comments, labels, search and filters, built-in views, workspace settings, owner-only safe workspace deletion, and per-user demo workspace seeding. The frontend uses a layered near-black canvas, compact command-deck navigation, restrained acid-lime actions, dense issue tables, contextual drawers, and a responsive product-preview landing page.
+
+![SuDo issue workspace](docs/images/sudo-issues.png)
 
 ## Stack
 
@@ -18,38 +22,38 @@ Current status: authenticated workspace, project, basic issue, issue detail, com
 
 ## What Works Now
 
-- Landing page at `/`.
-- Clerk sign-in route at `/sign-in`.
-- Clerk sign-up route at `/sign-up`.
-- Protected app placeholder at `/app` when Clerk env vars are configured.
+- Responsive product landing page with a CSS-based MacBook product preview.
+- Premium Clerk sign-in and sign-up wrappers at `/sign-in` and `/sign-up`.
+- Protected workspace application at `/app`.
 - Graceful local placeholder mode when Clerk or database env vars are missing.
 - Prisma Client generation.
-- Initial Prisma schema for users, workspaces, projects, issues, labels, comments, activity logs, and demo reset metadata.
+- Prisma schema for users, workspaces, projects, issues, labels, comments, activity logs, and demo reset metadata.
 - Server-side helper to map the current Clerk user to a local `User` record when Clerk and `DATABASE_URL` are configured.
 - Workspace onboarding for authenticated users with a configured database.
 - Workspace creation that also creates an owner `WorkspaceMember` row.
 - Sidebar workspace switcher for changing workspaces and creating additional workspaces after onboarding.
-- Workspace-aware app shell that shows the current workspace and placeholder nav for future product areas.
-- Server-side workspace authorization helpers for future workspace-scoped features.
+- Responsive workspace command deck with project, issue, view, and settings navigation.
+- Centralized server-side workspace authorization helpers for workspace-scoped reads and writes.
 - Dedicated project page at `/app/projects` with project listing, creation, rename/edit, and archive inside the selected workspace.
 - Server-side project helpers that enforce workspace membership before project reads and writes.
-- Dedicated issue page at `/app/issues` with basic issue listing, creation, edit, and archive inside the selected project.
+- Dedicated issue page at `/app/issues` with compact rows, creation, edit, and archive inside the selected project.
 - Issue status and priority editing with server-side project/workspace authorization.
 - URL-backed issue detail drawer using `?issue=<issueId>` for refreshable focused editing.
 - Issue comments inside the detail drawer with chronological list, author display, timestamp, and composer.
 - Workspace labels that can be created, attached to issues, removed from issues, and shown in the issue list and detail drawer.
-- Project-scoped issue filters by status, priority, and label.
+- Project-scoped custom dropdown filters by status, priority, and label.
 - Lightweight issue search by title, description, issue key, and issue number.
 - Built-in Views page at `/app/views` with shortcuts into the existing issue filters.
-- Settings page at `/app/settings` with account context and MVP app status.
-- Linear-style count badges for sidebar project/issue totals, project issue counts, issue result counts, and built-in view counts.
-- Compact plus-button modals for creating projects and issues.
+- Settings page at `/app/settings` with workspace context and a dedicated danger zone.
+- Owner-only workspace deletion requiring the exact workspace name, with server-side authorization and deterministic redirect behavior.
+- Plain numeric navigation counts plus compact project, issue, and view metadata.
+- Reusable panels, page headers, empty states, issue badges, dialogs, buttons, and form controls.
 
 ## Planned Next
 
-- Deploy to Vercel with production Clerk and Postgres env vars.
 - Add public shared demo reset after the authenticated demo workspace path is deployed and verified.
 - Add activity logs after deployment readiness is stable.
+- Consider saved custom views only after the current list and filter workflow is validated.
 
 ## Local Setup
 
@@ -117,6 +121,8 @@ npx playwright install chromium
 The fallback e2e suite covers `/`, `/sign-in`, `/sign-up`, signed-out `/app` protection, and responsive landing-page smoke checks. It does not hardcode Clerk credentials or bypass auth.
 
 For authenticated `/app` QA, sign in manually inside the active browser session, then inspect the workspace switcher, projects, issues, drawer, comments, labels, filters, views, and settings. Do not commit browser session state or screenshots containing private account data.
+
+The screenshots committed under `docs/images/` contain only public or seeded demo content. Keep authenticated QA captures in ignored `test-results/` unless they have been explicitly reviewed and sanitized.
 
 For full browser QA process details, see:
 
@@ -316,10 +322,14 @@ Views v1 does not create saved custom views or a `SavedView` table. It is intent
 Once Clerk, `DATABASE_URL`, migrations, and at least one workspace are configured:
 
 1. Sign in and open `/app/settings`.
-2. Confirm the account name/email render.
-3. Confirm the app status card describes the current MVP scope.
+2. Confirm the selected workspace name, slug, and membership role render.
+3. Confirm the account context and workspace metadata match the active workspace.
+4. For an owned workspace, open the danger-zone delete dialog.
+5. Confirm deletion remains disabled until the exact workspace name is entered.
+6. Confirm a non-owner cannot invoke the server-side deletion helper.
+7. After deletion, confirm the user is redirected to another authorized workspace or onboarding when none remain.
 
-Settings v1 does not include workspace rename controls, workspace role/context details, workspace slug/id, teams, invites, billing, notifications, profile editing, or workspace deletion. Workspace creation and switching stay in the sidebar workflow.
+Workspace deletion removes the selected workspace and its workspace-scoped records through the existing Prisma relations. Authorization is enforced again on the server; the dialog confirmation is a UX safeguard, not the permission boundary.
 
 ## Count Badge Foundation
 

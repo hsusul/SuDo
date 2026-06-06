@@ -231,11 +231,11 @@ function resolveSelectedProject(
 function WorkspaceOnboardingState({ userName }: { userName: string | null }) {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-7rem)] w-full max-w-2xl items-center">
-      <section className="w-full rounded-xl border border-border/70 bg-card/82 p-6 sm:p-8">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/90">
+      <section className="sudo-panel w-full p-6 sm:p-8">
+        <p className="sudo-kicker">
           Workspace onboarding
         </p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-normal">
+        <h1 className="mt-3 text-2xl font-semibold tracking-[-0.02em]">
           Create your first workspace
         </h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -280,7 +280,7 @@ function WorkspaceHomeState({
   }));
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-4">
+    <div className="mx-auto grid w-full max-w-[1400px] gap-4">
       {view === "projects" ? (
         <ProjectPanel
           workspaceId={workspace.id}
@@ -311,7 +311,10 @@ function WorkspaceHomeState({
           summary={viewSummary}
         />
       ) : (
-        <SettingsPanel user={currentUser} />
+        <SettingsPanel
+          user={currentUser}
+          workspace={{ id: workspace.id, name: workspace.name }}
+        />
       )}
     </div>
   );
@@ -354,11 +357,9 @@ function SetupState({
 }) {
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-6">
-      <section className="rounded-xl border border-border/70 bg-card/82 p-6">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-          Setup required
-        </p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-normal">
+      <section className="sudo-panel p-6">
+        <p className="sudo-kicker">Setup required</p>
+        <h1 className="mt-3 text-2xl font-semibold tracking-[-0.02em]">
           Auth and database are not fully configured
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -397,11 +398,9 @@ function SetupState({
 
 function SetupErrorState({ status }: { status: string }) {
   return (
-    <section className="mx-auto w-full max-w-3xl rounded-xl border border-border/70 bg-card/82 p-6">
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-        Setup blocked
-      </p>
-      <h1 className="mt-3 text-2xl font-semibold tracking-normal">
+    <section className="sudo-panel mx-auto w-full max-w-3xl p-6">
+      <p className="sudo-kicker">Setup blocked</p>
+      <h1 className="mt-3 text-2xl font-semibold tracking-[-0.02em]">
         SuDo could not prepare your local user
       </h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">

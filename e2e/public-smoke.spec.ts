@@ -14,9 +14,13 @@ test.describe("public visual smoke", () => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto("/");
 
-      await expect(page.getByRole("heading", { name: "Track the work. Keep the flow." })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Start tracking" })).toBeVisible();
-      await expect(page.getByText("SuDo workspace")).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "A focused command deck for shipping work." }).first(),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Start with SuDo" })).toBeVisible();
+      await expect(
+        page.getByText("SuDo turns workspace chaos into a clean issue pipeline."),
+      ).toBeVisible();
 
       const hasHorizontalOverflow = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth + 1,

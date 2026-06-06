@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Archive, Check, FolderKanban, Pencil, Plus, X } from "lucide-react";
+import { Archive, ArrowUpRight, Check, FolderKanban, Pencil, Plus, X } from "lucide-react";
 import {
   archiveProjectAction,
   createProjectAction,
@@ -13,8 +13,11 @@ import {
   type ProjectActionState,
 } from "@/app/app/projects/actions";
 import { ActionDialog } from "@/components/action-dialog";
+import { AppPanel } from "@/components/ui/app-panel";
 import { Button } from "@/components/ui/button";
 import { CountBadge } from "@/components/ui/count-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/utils";
 
 export type ProjectListItem = {
@@ -43,63 +46,65 @@ export function ProjectPanel({
   const [isCreating, setIsCreating] = useState(false);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border/70 bg-card/82">
-      <div className="flex flex-col gap-4 border-b border-border/55 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/85">
-            Projects
-          </p>
-          <h2 className="mt-2 text-xl font-semibold tracking-normal">
-            Workspace projects
-          </h2>
-          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <CountBadge count={projects.length} label="active project" />
+    <div className="grid gap-6">
+      <PageHeader
+        eyebrow="Projects"
+        title="Workspace projects"
+        description="Organize related issues into focused workstreams and keep active load visible."
+        metadata={
+          <span className="flex items-center gap-1.5 font-mono text-[0.68rem] uppercase text-[#62666d]">
+            <CountBadge
+              count={projects.length}
+              label="active project"
+              className={plainCountClassName}
+            />
             <span>{projects.length === 1 ? "active project" : "active projects"}</span>
-          </div>
-        </div>
-        <Button
-          type="button"
-          size="icon"
-          aria-label="Create project"
-          title="Create project"
-          onClick={() => setIsCreating(true)}
-        >
-          <Plus className="size-4" aria-hidden="true" />
-        </Button>
-      </div>
+          </span>
+        }
+        actions={
+          <Button type="button" onClick={() => setIsCreating(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            New project
+          </Button>
+        }
+      />
 
       {projects.length === 0 ? (
-        <div className="p-6">
-          <div className="rounded-lg border border-dashed border-border/55 bg-background/28 p-8 text-center">
-            <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-lg border border-border/55 bg-muted/40 text-muted-foreground">
-              <FolderKanban className="size-5" aria-hidden="true" />
-            </div>
-            <h3 className="text-base font-medium">No projects yet</h3>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              Add the first project for this workspace. Keep it broad enough to
-              collect related issues later.
-            </p>
+        <AppPanel className="p-3">
+          <EmptyState
+            icon={<FolderKanban className="size-5" aria-hidden="true" />}
+            title="No projects yet"
+            description="Add the first project for this workspace. Keep it broad enough to collect related issues later."
+            action={
             <Button
               type="button"
-              className="mt-5"
               onClick={() => setIsCreating(true)}
             >
               <Plus className="size-4" aria-hidden="true" />
               Create project
             </Button>
-          </div>
-        </div>
+            }
+          />
+        </AppPanel>
       ) : (
-        <div className="divide-y divide-border/45">
-          {projects.map((project) => (
-            <ProjectRow
-              key={project.id}
-              project={project}
-              workspaceSlug={workspaceSlug}
-              selected={project.key === selectedProjectKey}
-            />
-          ))}
-        </div>
+        <AppPanel>
+          <div className="grid md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project, index) => (
+              <ProjectRow
+                key={project.id}
+                project={project}
+                workspaceSlug={workspaceSlug}
+                selected={project.key === selectedProjectKey}
+                className={cn(
+                  index > 0 && "border-t md:border-t-0",
+                  index % 2 === 1 && "md:border-l",
+                  index >= 2 && "md:border-t xl:border-t-0",
+                  index % 3 !== 0 && "xl:border-l",
+                )}
+              />
+            ))}
+          </div>
+        </AppPanel>
       )}
 
       <ActionDialog
@@ -110,7 +115,7 @@ export function ProjectPanel({
       >
         <CreateProjectForm workspaceId={workspaceId} workspaceSlug={workspaceSlug} />
       </ActionDialog>
-    </section>
+    </div>
   );
 }
 
@@ -152,7 +157,7 @@ function CreateProjectForm({
           maxLength={500}
           rows={3}
           placeholder="Optional context for the project."
-          className={cn(inputClassName, "h-auto resize-none py-2")}
+          className="sudo-textarea"
         />
       </div>
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
@@ -165,18 +170,22 @@ function ProjectRow({
   project,
   workspaceSlug,
   selected,
+  className,
 }: {
   project: ProjectListItem;
   workspaceSlug: string;
   selected: boolean;
+  className?: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
 
   return (
     <article
       className={cn(
-        "grid gap-4 p-5 transition duration-200 hover:bg-muted/12 lg:grid-cols-[1fr_auto] lg:items-start",
-        selected && "bg-muted/16",
+        "group relative grid min-h-72 gap-5 border-border p-5 outline-none transition duration-150 hover:z-10 hover:-translate-y-0.5 hover:bg-[#121315] hover:shadow-[0_18px_40px_rgb(0_0_0_/_28%)] focus-within:bg-[#121315]",
+        selected &&
+          "bg-[#121315] before:absolute before:inset-x-5 before:top-0 before:h-px before:bg-[#5e6ad2]",
+        className,
       )}
     >
       {isEditing ? (
@@ -187,33 +196,39 @@ function ProjectRow({
         />
       ) : (
         <>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-md border border-border/60 bg-background/50 px-2 py-1 font-mono text-xs text-muted-foreground">
+          <div className="flex min-h-full min-w-0 flex-col">
+            <div className="flex items-center justify-between gap-3">
+              <span className="rounded-[4px] border border-[#323334] bg-[#161718] px-2 py-1 font-mono text-[0.68rem] text-[#8a8f98]">
                 {project.key}
               </span>
-              <h3 className="truncate text-base font-medium">{project.name}</h3>
-              <CountBadge
-                count={project.activeIssueCount}
-                label="active issue"
-                showZero
-                className="ml-0.5"
-              />
+              <span className="font-mono text-[0.64rem] uppercase text-[#62666d]">
+                <CountBadge
+                  count={project.activeIssueCount}
+                  label="active issue"
+                  showZero
+                  className={plainCountClassName}
+                />{" "}
+                active
+              </span>
             </div>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            <h3 className="mt-5 text-lg font-medium tracking-[-0.01em]">{project.name}</h3>
+            <p className="mt-2 line-clamp-4 text-sm leading-6 text-[#8a8f98]">
               {project.description || "No project description yet."}
             </p>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Updated {formatDate(project.updatedAt)}
-            </p>
+            <div className="mt-auto pt-5">
+              <p className="font-mono text-[0.64rem] uppercase text-[#62666d]">
+                Updated {formatDate(project.updatedAt)}
+              </p>
+            </div>
             <Link
               href={`/app/issues?workspace=${workspaceSlug}&project=${project.key}`}
-              className="mt-3 inline-flex text-xs font-medium text-foreground/82 underline-offset-4 transition hover:text-foreground hover:underline"
+              className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-[#aeb5ff] transition hover:text-[#c5caff]"
             >
               {selected ? "Selected for issues" : "View issues"}
+              <ArrowUpRight className="size-3.5" aria-hidden="true" />
             </Link>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 border-t border-border pt-4">
             <Button
               type="button"
               variant="outline"
@@ -243,10 +258,10 @@ function EditProjectForm({
   const [state, formAction] = useActionState(updateProjectAction, initialState);
 
   return (
-    <form action={formAction} className="grid gap-3 lg:col-span-2">
+    <form action={formAction} className="grid gap-4 lg:col-span-2">
       <input type="hidden" name="projectId" value={project.id} />
       <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
-      <div className="grid gap-3 sm:grid-cols-[16rem_1fr]">
+      <div className="grid gap-3">
         <div className="grid gap-2">
           <label htmlFor={`project-name-${project.id}`} className="text-xs font-medium text-muted-foreground">
             Project name
@@ -266,13 +281,13 @@ function EditProjectForm({
           <label htmlFor={`project-description-${project.id}`} className="text-xs font-medium text-muted-foreground">
             Description
           </label>
-          <input
+          <textarea
             id={`project-description-${project.id}`}
             name="description"
-            type="text"
             maxLength={500}
+            rows={3}
             defaultValue={project.description ?? ""}
-            className={inputClassName}
+            className="sudo-textarea"
           />
         </div>
       </div>
@@ -330,7 +345,13 @@ function ArchiveButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant="destructive" size="sm" disabled={pending}>
+    <Button
+      type="submit"
+      variant="outline"
+      size="sm"
+      disabled={pending}
+      className="text-[#8a8f98] hover:border-destructive/35 hover:text-[#ff8585]"
+    >
       <Archive className="size-3.5" aria-hidden="true" />
       {pending ? "Archiving..." : "Archive"}
     </Button>
@@ -345,5 +366,6 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-const inputClassName =
-  "h-9 w-full rounded-md border border-input/70 bg-background/58 px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/55 focus:border-ring focus:ring-2 focus:ring-ring/20";
+const inputClassName = "sudo-input";
+const plainCountClassName =
+  "h-auto min-w-0 rounded-none border-0 bg-transparent px-0 text-[0.72rem] text-muted-foreground/72";

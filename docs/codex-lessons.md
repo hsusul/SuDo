@@ -44,6 +44,7 @@ Read this file before non-trivial work. Update it after meaningful tasks only wh
 - Workspace creation surfaces should share `createWorkspaceForUser()` so every path creates the owner membership server-side.
 - Settings mutations must be role-gated server-side; disabled UI controls are only a convenience, not authorization.
 - Keep Settings account-only until a workspace management slice explicitly defines permissions, recovery, and destructive-action rules.
+- Workspace deletion must be owner-only, require exact-name confirmation server-side, and use explicit transactional child deletion when restrictive relations make raw workspace cascade ordering ambiguous.
 - For child records like projects, update/archive helpers should load the record first, derive its workspace server-side, then call `requireWorkspaceAccess()` before writing.
 - For issue mutations, load the issue or project first, derive workspace access server-side, and create missing default statuses for older workspaces before writing issue rows.
 
@@ -89,6 +90,7 @@ Read this file before non-trivial work. Update it after meaningful tasks only wh
 - Keep controls compact, accessible, and predictable.
 - Keep routine product surfaces crisp: use restrained radii, thin borders, flatter charcoal panels, and reserve pill shapes for counts, avatars, and semantic chips.
 - Before a redesign pass, write down the specific hierarchy, spacing, color, and component issues being fixed so the work stays targeted instead of becoming a broad rewrite.
+- For a redesign that must feel meaningfully different, change page composition, shell structure, and reusable surface primitives together; token-only polish reads as the same UI.
 
 ## Testing Lessons
 

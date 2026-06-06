@@ -22,7 +22,7 @@ export function ActionDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-background/78 px-4 py-20 backdrop-blur-sm sm:items-center sm:py-8">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/65 px-4 py-20 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 sm:items-center sm:py-8">
       <button
         type="button"
         className="absolute inset-0 cursor-default"
@@ -33,9 +33,9 @@ export function ActionDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="action-dialog-title"
-        className="relative w-full max-w-xl overflow-hidden rounded-xl border border-border/70 bg-card shadow-lg shadow-black/20"
+        className="relative w-full max-w-xl overflow-hidden rounded-xl border border-[#323334] bg-popover shadow-[0_24px_90px_rgb(0_0_0_/_48%)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border/55 px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-border bg-[#121315] px-5 py-4">
           <div className="min-w-0">
             <h2 id="action-dialog-title" className="text-sm font-semibold tracking-normal">
               {title}
