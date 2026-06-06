@@ -2,15 +2,7 @@
 
 SuDo is a focused issue tracker and workspace command deck for solo builders, student developers, hackathon teams, and small technical teams. It combines workspace-scoped project management with a compact, dark productivity interface inspired by the clarity and speed of tools such as Linear and Raycast.
 
-<p align="center">
-  <img src="docs/images/sudo-landing.png" alt="SuDo landing page" width="900" />
-</p>
-
 The current product includes authenticated workspaces, projects, issues, comments, labels, search and filters, built-in views, workspace settings, owner-only safe workspace deletion, and per-user demo workspace seeding. The frontend uses a layered near-black canvas, compact command-deck navigation, restrained acid-lime actions, dense issue tables, contextual drawers, and a responsive product-preview landing page.
-
-<p align="center">
-  <img src="docs/images/sudo-issues.png" alt="SuDo issue workspace" width="900" />
-</p>
 
 ## Stack
 
@@ -125,8 +117,6 @@ npx playwright install chromium
 The fallback e2e suite covers `/`, `/sign-in`, `/sign-up`, signed-out `/app` protection, and responsive landing-page smoke checks. It does not hardcode Clerk credentials or bypass auth.
 
 For authenticated `/app` QA, sign in manually inside the active browser session, then inspect the workspace switcher, projects, issues, drawer, comments, labels, filters, views, and settings. Do not commit browser session state or screenshots containing private account data.
-
-The screenshots committed under `docs/images/` contain only public or seeded demo content. Keep authenticated QA captures in ignored `test-results/` unless they have been explicitly reviewed and sanitized.
 
 For full browser QA process details, see:
 
