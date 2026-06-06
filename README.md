@@ -118,11 +118,6 @@ The fallback e2e suite covers `/`, `/sign-in`, `/sign-up`, signed-out `/app` pro
 
 For authenticated `/app` QA, sign in manually inside the active browser session, then inspect the workspace switcher, projects, issues, drawer, comments, labels, filters, views, and settings. Do not commit browser session state or screenshots containing private account data.
 
-For full browser QA process details, see:
-
-- `docs/browser-qa.md`
-- `docs/visual-qa-checklist.md`
-
 ## Clerk Setup
 
 Create a Clerk application, then add these values to `.env`:
@@ -569,9 +564,6 @@ Postgres, and Clerk for production authentication. Do not deploy with local
 development secrets, and do not run destructive Prisma commands against
 production.
 
-For a checkbox version of this process, see `docs/DEPLOYMENT_CHECKLIST.md`.
-For secret-handling rules, see `docs/SECURITY_NOTES.md`.
-
 ### Prerequisites
 
 - GitHub repository: `https://github.com/hsusul/SuDo`
@@ -732,15 +724,3 @@ npm run db:verify-demo
   database URL, SSL settings, and that `npm run prisma:migrate:deploy` ran.
 - Demo creation fails after sign-in: verify migrations ran and the signed-in
   user reached `/app` so SuDo could sync a local `User` row.
-
-## Planning Docs
-
-- `docs/PRD.md`
-- `docs/MILESTONES.md`
-- `docs/DATA_MODEL.md`
-- `docs/DESIGN_DIRECTION.md`
-- `docs/TECH_DECISIONS.md`
-- `docs/architecture.md`
-- `docs/DEPLOYMENT_CHECKLIST.md`
-- `docs/SECURITY_NOTES.md`
-- `docs/decisions/`
