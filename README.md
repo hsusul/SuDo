@@ -2,11 +2,15 @@
 
 SuDo is a focused issue tracker and workspace command deck for solo builders, student developers, hackathon teams, and small technical teams. It combines workspace-scoped project management with a compact, dark productivity interface inspired by the clarity and speed of tools such as Linear and Raycast.
 
-![SuDo landing page](docs/images/sudo-landing.png)
+<p align="center">
+  <img src="docs/images/sudo-landing.png" alt="SuDo landing page" width="900" />
+</p>
 
 The current product includes authenticated workspaces, projects, issues, comments, labels, search and filters, built-in views, workspace settings, owner-only safe workspace deletion, and per-user demo workspace seeding. The frontend uses a layered near-black canvas, compact command-deck navigation, restrained acid-lime actions, dense issue tables, contextual drawers, and a responsive product-preview landing page.
 
-![SuDo issue workspace](docs/images/sudo-issues.png)
+<p align="center">
+  <img src="docs/images/sudo-issues.png" alt="SuDo issue workspace" width="900" />
+</p>
 
 ## Stack
 
