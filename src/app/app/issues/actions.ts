@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getSafeActionErrorMessage } from "@/lib/action-error";
 import {
   archiveIssue,
   createIssueForProject,
@@ -27,6 +28,7 @@ export async function createIssueAction(
     description: formData.get("description"),
     status: formData.get("status"),
     priority: formData.get("priority"),
+    assigneeId: formData.get("assigneeId"),
   });
 
   if (!parsed.success) {
@@ -43,10 +45,10 @@ export async function createIssueAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Issue could not be created. Check your project access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Issue could not be created. Check your project access.",
+      ),
     };
   }
 }
@@ -64,6 +66,7 @@ export async function updateIssueAction(
     description: formData.get("description"),
     status: formData.get("status"),
     priority: formData.get("priority"),
+    assigneeId: formData.get("assigneeId"),
   });
 
   if (!parsed.success) {
@@ -80,10 +83,10 @@ export async function updateIssueAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Issue could not be updated. Check your project access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Issue could not be updated. Check your project access.",
+      ),
     };
   }
 }
@@ -106,10 +109,10 @@ export async function archiveIssueAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Issue could not be archived. Check your project access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Issue could not be archived. Check your project access.",
+      ),
     };
   }
 }

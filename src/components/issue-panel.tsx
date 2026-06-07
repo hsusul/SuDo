@@ -9,11 +9,13 @@ import {
   Archive,
   Check,
   CircleDot,
+  Clock3,
   MessageSquare,
   Plus,
   Search,
   Send,
   Tag,
+  UserRound,
   X,
 } from "lucide-react";
 import {
@@ -73,6 +75,7 @@ export type IssueListItem = {
   updatedAt: string;
   createdAt: string;
   labels: IssueLabelItem[];
+  assignee: IssueAssigneeItem | null;
 };
 
 export type SelectedIssueProject = {
@@ -85,6 +88,7 @@ export type IssueDetailItem = IssueListItem & {
   issueNumber: number;
   project: SelectedIssueProject;
   comments: IssueCommentItem[];
+  activity: IssueActivityItem[];
 };
 
 export type IssueLabelItem = {
@@ -105,6 +109,27 @@ export type IssueCommentItem = {
   };
 };
 
+export type IssueAssigneeItem = {
+  id: string;
+  name: string | null;
+  email: string;
+  imageUrl: string | null;
+};
+
+export type WorkspaceIssueMember = {
+  id: string;
+  role: "owner" | "admin" | "member";
+  user: IssueAssigneeItem;
+};
+
+export type IssueActivityItem = {
+  id: string;
+  action: string;
+  metadata: Record<string, string | string[] | null> | null;
+  createdAt: string;
+  actor: IssueAssigneeItem | null;
+};
+
 const initialState: IssueActionState = {};
 const initialCommentState: CommentActionState = {};
 const initialLabelState: LabelActionState = {};
@@ -116,6 +141,7 @@ export function IssuePanel({
   projects = [],
   issues,
   workspaceLabels,
+  workspaceMembers,
   filters,
   selectedIssue,
 }: {
@@ -125,6 +151,7 @@ export function IssuePanel({
   projects?: SelectedIssueProject[];
   issues: IssueListItem[];
   workspaceLabels: IssueLabelItem[];
+  workspaceMembers: WorkspaceIssueMember[];
   filters: IssueFilters;
   selectedIssue?: IssueDetailItem | null;
 }) {
@@ -245,11 +272,12 @@ export function IssuePanel({
           </div>
         ) : (
           <>
-            <div className="hidden grid-cols-[5rem_minmax(15rem,1fr)_8rem_6rem_7rem_5rem] border-b border-border bg-[#0c0d0e] px-5 py-2.5 font-mono text-[0.6rem] uppercase text-[#62666d] lg:grid">
+            <div className="hidden grid-cols-[5rem_minmax(13rem,1fr)_8rem_6rem_7rem_7rem_5rem] border-b border-border bg-[#0c0d0e] px-5 py-2.5 font-mono text-[0.6rem] uppercase text-[#62666d] lg:grid">
               <span>ID</span>
               <span>Issue</span>
               <span>Status</span>
               <span>Priority</span>
+              <span>Assignee</span>
               <span>Updated</span>
               <span className="text-right">Action</span>
             </div>
@@ -276,7 +304,12 @@ export function IssuePanel({
         open={isCreating}
         onOpenChange={setIsCreating}
       >
-        <CreateIssueForm workspaceSlug={workspaceSlug} project={project} filters={filters} />
+        <CreateIssueForm
+          workspaceSlug={workspaceSlug}
+          project={project}
+          filters={filters}
+          workspaceMembers={workspaceMembers}
+        />
       </ActionDialog>
 
       <ActionDialog
@@ -295,6 +328,7 @@ export function IssuePanel({
             workspaceSlug={workspaceSlug}
             projectKey={project.key}
             filters={filters}
+            workspaceMembers={workspaceMembers}
             onCancel={() => setEditingIssue(null)}
           />
         ) : null}
@@ -453,10 +487,12 @@ function CreateIssueForm({
   workspaceSlug,
   project,
   filters,
+  workspaceMembers,
 }: {
   workspaceSlug: string;
   project: SelectedIssueProject;
   filters: IssueFilters;
+  workspaceMembers: WorkspaceIssueMember[];
 }) {
   const [state, formAction] = useActionState(createIssueAction, initialState);
 
@@ -494,8 +530,12 @@ function CreateIssueForm({
           className="sudo-textarea"
         />
       </div>
-      <IssueSelectGrid />
-      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      <IssueSelectGrid workspaceMembers={workspaceMembers} />
+      {state.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      ) : null}
       <IssueSubmitButton label="Create issue" pendingLabel="Creating..." icon={<Plus className="size-4" />} />
     </form>
   );
@@ -564,7 +604,7 @@ function IssueRow({
               router.push(detailHref);
             }
           }}
-          className="grid min-w-0 cursor-pointer gap-2 rounded-md outline-none transition focus-visible:ring-2 focus-visible:ring-ring/30 lg:grid-cols-[5rem_minmax(0,1fr)_8rem_6rem_7rem] lg:items-center"
+          className="grid min-w-0 cursor-pointer gap-2 rounded-md outline-none transition focus-visible:ring-2 focus-visible:ring-ring/30 lg:grid-cols-[5rem_minmax(0,1fr)_8rem_6rem_7rem_7rem] lg:items-center"
         >
           <span className="font-mono text-[0.68rem] text-[#62666d]">
             {issue.issueKey}
@@ -584,6 +624,7 @@ function IssueRow({
           </div>
           <StatusTag status={issue.status} label={formatIssueStatus(issue.status)} />
           <PriorityTag priority={issue.priority} label={formatIssuePriority(issue.priority)} />
+          <AssigneeSummary assignee={issue.assignee} />
           <p className="font-mono text-[0.64rem] text-[#62666d]">
             {formatDate(issue.updatedAt)}
           </p>
@@ -608,6 +649,7 @@ function EditIssueForm({
   filters,
   onCancel,
   returnToIssueId,
+  workspaceMembers,
 }: {
   issue: IssueListItem;
   workspaceSlug: string;
@@ -615,6 +657,7 @@ function EditIssueForm({
   filters: IssueFilters;
   onCancel: () => void;
   returnToIssueId?: string;
+  workspaceMembers: WorkspaceIssueMember[];
 }) {
   const [state, formAction] = useActionState(updateIssueAction, initialState);
 
@@ -627,7 +670,7 @@ function EditIssueForm({
       {returnToIssueId ? (
         <input type="hidden" name="returnToIssueId" value={returnToIssueId} />
       ) : null}
-      <div className="grid gap-3 lg:grid-cols-[1fr_14rem_10rem]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_11rem_9rem_12rem]">
         <div className="grid gap-2">
           <label htmlFor={`issue-title-${issue.id}`} className="text-xs font-medium text-muted-foreground">
             Issue title
@@ -657,6 +700,18 @@ function EditIssueForm({
             </option>
           ))}
         </SelectField>
+        <SelectField
+          name="assigneeId"
+          label="Assignee"
+          defaultValue={issue.assignee?.id ?? ""}
+        >
+          <option value="">Unassigned</option>
+          {workspaceMembers.map((membership) => (
+            <option key={membership.user.id} value={membership.user.id}>
+              {membership.user.name ?? membership.user.email}
+            </option>
+          ))}
+        </SelectField>
       </div>
       <div className="grid gap-2">
         <label htmlFor={`issue-description-${issue.id}`} className="text-xs font-medium text-muted-foreground">
@@ -671,7 +726,11 @@ function EditIssueForm({
           className="sudo-textarea"
         />
       </div>
-      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      ) : null}
       <div className="flex items-center gap-2">
         <IssueSubmitButton label="Save issue" pendingLabel="Saving..." icon={<Check className="size-4" />} />
         <Button type="button" variant="ghost" onClick={onCancel}>
@@ -745,6 +804,11 @@ function IssueDetailDrawer({
               <DetailMeta label="Issue number" value={String(issue.issueNumber)} />
               <DetailMeta label="Status" value={formatIssueStatus(issue.status)} />
               <DetailMeta label="Priority" value={formatIssuePriority(issue.priority)} />
+              <DetailMeta
+                label="Assignee"
+                value={issue.assignee?.name ?? issue.assignee?.email ?? "Unassigned"}
+              />
+              <DetailMeta label="Activity" value={String(issue.activity.length)} />
               <DetailMeta label="Created" value={formatDate(issue.createdAt)} />
               <DetailMeta label="Updated" value={formatDate(issue.updatedAt)} />
             </dl>
@@ -756,6 +820,8 @@ function IssueDetailDrawer({
               workspaceSlug={workspaceSlug}
               filters={filters}
             />
+
+            <IssueActivitySection activity={issue.activity} />
 
             <IssueCommentsSection issue={issue} workspaceSlug={workspaceSlug} filters={filters} />
           </div>
@@ -892,7 +958,11 @@ function AttachExistingLabelForm({
         </select>
       </div>
       <LabelSubmitButton label="Attach" pendingLabel="Attaching..." disabled={availableLabels.length === 0} />
-      {state.error ? <p className="text-sm text-destructive sm:col-span-2">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-destructive sm:col-span-2">
+          {state.error}
+        </p>
+      ) : null}
     </form>
   );
 }
@@ -953,7 +1023,11 @@ function CreateLabelForm({
         </div>
         <LabelSubmitButton label="Create" pendingLabel="Creating..." />
       </div>
-      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      ) : null}
     </form>
   );
 }
@@ -981,7 +1055,11 @@ function RemoveLabelForm({
       <input type="hidden" name="projectKey" value={projectKey} />
       <IssueFilterHiddenFields filters={filters} />
       <RemoveLabelButton label={label} />
-      {state.error ? <p className="sr-only">{state.error}</p> : null}
+      {state.error ? (
+        <span role="alert" className="text-xs text-destructive">
+          {state.error}
+        </span>
+      ) : null}
     </form>
   );
 }
@@ -1021,6 +1099,66 @@ function LabelSubmitButton({
     <Button type="submit" size="sm" disabled={pending || disabled}>
       {pending ? pendingLabel : label}
     </Button>
+  );
+}
+
+function IssueActivitySection({
+  activity,
+}: {
+  activity: IssueActivityItem[];
+}) {
+  return (
+    <section className="grid gap-4 border-t border-border/50 pt-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="sudo-kicker">Activity</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {activity.length === 0
+              ? "No recorded changes yet"
+              : `${activity.length} recorded ${activity.length === 1 ? "event" : "events"}`}
+          </p>
+        </div>
+        <div className="flex size-9 items-center justify-center rounded-md border border-border/55 bg-background/45 text-muted-foreground">
+          <Clock3 className="size-4" aria-hidden="true" />
+        </div>
+      </div>
+
+      {activity.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border/55 bg-background/32 px-4 py-4 text-sm text-muted-foreground">
+          New issue changes and collaboration events will appear here.
+        </div>
+      ) : (
+        <ol className="relative grid gap-3 before:absolute before:bottom-3 before:left-[0.95rem] before:top-3 before:w-px before:bg-border">
+          {activity.map((event) => (
+            <li
+              key={event.id}
+              className="relative grid grid-cols-[2rem_minmax(0,1fr)] gap-3"
+            >
+              <AuthorAvatar
+                name={event.actor?.name ?? event.actor?.email ?? null}
+                imageUrl={event.actor?.imageUrl ?? null}
+              />
+              <div className="min-w-0 rounded-md border border-border bg-[#0c0d0e] px-3 py-2.5">
+                <p className="text-sm leading-5 text-[#d0d6e0]">
+                  <span className="font-medium">
+                    {event.actor?.name ?? event.actor?.email ?? "System"}
+                  </span>{" "}
+                  <span className="text-[#8a8f98]">
+                    {formatActivityEvent(event)}
+                  </span>
+                </p>
+                <time
+                  dateTime={event.createdAt}
+                  className="mt-1 block font-mono text-[0.62rem] text-[#62666d]"
+                >
+                  {formatDateTime(event.createdAt)}
+                </time>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }
 
@@ -1095,6 +1233,64 @@ function IssueCommentsSection({
   );
 }
 
+function AssigneeSummary({
+  assignee,
+}: {
+  assignee: IssueAssigneeItem | null;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-xs text-[#8a8f98]">
+      <UserRound className="size-3.5 shrink-0" aria-hidden="true" />
+      <span className="truncate">
+        {assignee?.name ?? assignee?.email ?? "Unassigned"}
+      </span>
+    </span>
+  );
+}
+
+function formatActivityEvent(event: IssueActivityItem) {
+  const metadata = event.metadata;
+
+  switch (event.action) {
+    case "issue.created":
+      return "created the issue";
+    case "issue.updated": {
+      const fields = metadata?.fields;
+      return Array.isArray(fields) && fields.length > 0
+        ? `updated ${fields.join(" and ")}`
+        : "updated the issue";
+    }
+    case "issue.status_changed":
+      return `changed status from ${formatActivityValue(metadata?.from)} to ${formatActivityValue(metadata?.to)}`;
+    case "issue.priority_changed":
+      return `changed priority from ${formatActivityValue(metadata?.from)} to ${formatActivityValue(metadata?.to)}`;
+    case "issue.assignee_changed":
+      return metadata?.to
+        ? `assigned the issue to ${metadata.to}`
+        : "cleared the assignee";
+    case "issue.label_added":
+      return `added the ${formatActivityValue(metadata?.labelName)} label`;
+    case "issue.label_removed":
+      return `removed the ${formatActivityValue(metadata?.labelName)} label`;
+    case "issue.comment_added":
+      return "added a comment";
+    default:
+      return "updated the issue";
+  }
+}
+
+function formatActivityValue(value: string | string[] | null | undefined) {
+  if (!value) {
+    return "none";
+  }
+
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+
+  return value.replaceAll("_", " ");
+}
+
 function CommentComposer({
   issueId,
   workspaceSlug,
@@ -1128,7 +1324,11 @@ function CommentComposer({
           className="sudo-textarea"
         />
       </div>
-      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      ) : null}
       <div className="flex justify-end">
         <CommentSubmitButton />
       </div>
@@ -1194,9 +1394,13 @@ function DetailMeta({ label, value }: { label: string; value: string }) {
   );
 }
 
-function IssueSelectGrid() {
+function IssueSelectGrid({
+  workspaceMembers,
+}: {
+  workspaceMembers: WorkspaceIssueMember[];
+}) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-3">
       <SelectField name="status" label="Status" defaultValue="todo">
         {issueStatusValues.map((status) => (
           <option key={status} value={status}>
@@ -1208,6 +1412,14 @@ function IssueSelectGrid() {
         {issuePriorityValues.map((priority) => (
           <option key={priority} value={priority}>
             {formatIssuePriority(priority)}
+          </option>
+        ))}
+      </SelectField>
+      <SelectField name="assigneeId" label="Assignee" defaultValue="">
+        <option value="">Unassigned</option>
+        {workspaceMembers.map((membership) => (
+          <option key={membership.user.id} value={membership.user.id}>
+            {membership.user.name ?? membership.user.email}
           </option>
         ))}
       </SelectField>
@@ -1263,7 +1475,11 @@ function ArchiveIssueForm({
       <input type="hidden" name="projectKey" value={projectKey} />
       <IssueFilterHiddenFields filters={filters} />
       <ArchiveButton />
-      {state.error ? <p className="sr-only">{state.error}</p> : null}
+      {state.error ? (
+        <span role="alert" className="text-xs text-destructive">
+          {state.error}
+        </span>
+      ) : null}
     </form>
   );
 }

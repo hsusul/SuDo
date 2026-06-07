@@ -2,7 +2,7 @@
 
 SuDo is a focused issue tracker and workspace command deck for solo builders, student developers, hackathon teams, and small technical teams. It combines workspace-scoped project management with a compact, dark productivity interface inspired by the clarity and speed of tools such as Linear and Raycast.
 
-The current product includes authenticated workspaces, projects, issues, comments, labels, search and filters, built-in views, workspace settings, owner-only safe workspace deletion, and per-user demo workspace seeding. The frontend uses a layered near-black canvas, compact command-deck navigation, restrained acid-lime actions, dense issue tables, contextual drawers, and a responsive product-preview landing page.
+The current product includes authenticated workspaces, role-based member management, invitations, projects, assignable issues, comments, labels, search and filters, built-in views, activity history, workspace settings, owner-only safe workspace deletion, and per-user demo workspace seeding. The frontend uses a layered near-black canvas, compact command-deck navigation, restrained acid-lime actions, dense issue tables, contextual drawers, and a responsive product-preview landing page.
 
 ## Stack
 
@@ -23,19 +23,25 @@ The current product includes authenticated workspaces, projects, issues, comment
 - Protected workspace application at `/app`.
 - Graceful local placeholder mode when Clerk or database env vars are missing.
 - Prisma Client generation.
-- Prisma schema for users, workspaces, projects, issues, labels, comments, activity logs, and demo reset metadata.
+- Prisma schema for users, workspaces, memberships, invitations, projects, issues, labels, comments, activity logs, and demo reset metadata.
 - Server-side helper to map the current Clerk user to a local `User` record when Clerk and `DATABASE_URL` are configured.
 - Workspace onboarding for authenticated users with a configured database.
 - Workspace creation that also creates an owner `WorkspaceMember` row.
 - Sidebar workspace switcher for changing workspaces and creating additional workspaces after onboarding.
 - Responsive workspace command deck with project, issue, view, and settings navigation.
 - Centralized server-side workspace authorization helpers for workspace-scoped reads and writes.
+- Workspace roles for owners, admins, and members with centralized permission checks.
+- Workspace member list and management controls in Settings.
+- Hashed, expiring workspace invitation tokens with pending, accepted, revoked, and expired states.
+- Local invite-link acceptance flow that verifies the signed-in user's email.
 - Dedicated project page at `/app/projects` with project listing, creation, rename/edit, and archive inside the selected workspace.
 - Server-side project helpers that enforce workspace membership before project reads and writes.
 - Dedicated issue page at `/app/issues` with compact rows, creation, edit, and archive inside the selected project.
 - Issue status and priority editing with server-side project/workspace authorization.
+- Workspace-member assignees with an explicit unassigned state in issue forms, rows, and drawers.
 - URL-backed issue detail drawer using `?issue=<issueId>` for refreshable focused editing.
 - Issue comments inside the detail drawer with chronological list, author display, timestamp, and composer.
+- Compact issue activity history for creation, edits, status, priority, assignee, label, and comment events.
 - Workspace labels that can be created, attached to issues, removed from issues, and shown in the issue list and detail drawer.
 - Project-scoped custom dropdown filters by status, priority, and label.
 - Lightweight issue search by title, description, issue key, and issue number.
@@ -48,7 +54,8 @@ The current product includes authenticated workspaces, projects, issues, comment
 ## Planned Next
 
 - Add public shared demo reset after the authenticated demo workspace path is deployed and verified.
-- Add activity logs after deployment readiness is stable.
+- Add transactional email delivery for workspace invitations.
+- Add notifications only after real delivery and preference semantics are defined.
 - Consider saved custom views only after the current list and filter workflow is validated.
 
 ## Local Setup
@@ -76,6 +83,21 @@ npm run dev
 Open `http://localhost:3000`.
 
 The app can build without Clerk or database secrets. Auth routes and protected behavior show setup placeholders until Clerk environment variables are configured.
+
+## Continuous Integration
+
+GitHub Actions runs `npm ci`, lint, typecheck, unit tests, the production build,
+and the repository check script for pushes to `main` and pull requests. These
+checks intentionally run without Clerk or database secrets. CI supplies a
+non-secret localhost database URL only so Prisma can generate its client; it
+does not connect to a database.
+
+Database verifier scripts are not part of CI because they inspect a configured
+Postgres database. Run them only from a trusted local or deployment environment
+where the intended database variables are loaded. The in-process mutation rate
+limits are basic per-instance abuse guardrails; production-wide enforcement
+across multiple Vercel instances should use Vercel Firewall or a shared rate
+limit store.
 
 ## Browser QA
 
@@ -168,6 +190,14 @@ Run the first migration only after `DATABASE_URL` points at a real development d
 
 ```bash
 npm run prisma:migrate
+```
+
+The collaboration vertical slice is introduced by migration
+`20260607023000_collaboration_vertical_slice`. Deploy committed migrations
+before using invitations in an existing environment:
+
+```bash
+npm run prisma:migrate:deploy
 ```
 
 Prisma 7 reads environment variables through `prisma.config.ts`. This repo loads `.env` first and `.env.local` second, so local secrets in `.env.local` can override shared defaults without being committed. Shell-provided environment variables still take precedence for one-off commands. If `DIRECT_DATABASE_URL` is present, Prisma CLI migration commands use it; otherwise they fall back to `DATABASE_URL`.
@@ -319,6 +349,50 @@ Once Clerk, `DATABASE_URL`, migrations, and at least one workspace are configure
 7. After deletion, confirm the user is redirected to another authorized workspace or onboarding when none remain.
 
 Workspace deletion removes the selected workspace and its workspace-scoped records through the existing Prisma relations. Authorization is enforced again on the server; the dialog confirmation is a UX safeguard, not the permission boundary.
+
+## Collaboration Foundation
+
+Workspace collaboration uses three roles:
+
+| Role | Workspace use | Invite members | Remove members | Change roles | Delete workspace |
+| --- | --- | --- | --- | --- | --- |
+| Owner | Yes | Yes | Other owners, admins, and members | Admin/member roles | Yes |
+| Admin | Yes | Yes | Members | No | No |
+| Member | Yes | No | No | No | No |
+
+The workspace owner cannot remove themselves through the member management UI.
+Server-side checks also prevent deleting a workspace unless the current
+membership role is `owner`.
+
+Invitation flow:
+
+1. An owner or admin opens `/app/settings` and creates an invitation for an
+   email address with the admin or member role.
+2. SuDo stores only a SHA-256 hash of the random invitation token. Invitations
+   expire after seven days and can be revoked while pending.
+3. Because transactional email is not configured, the settings panel returns a
+   local invite link for the manager to share directly.
+4. The recipient signs in through Clerk and opens the link.
+5. SuDo accepts the invitation only when the signed-in account email matches
+   the invited email, then creates the workspace membership transactionally.
+
+Issues can be assigned to any active member of the issue's workspace or left
+unassigned. Removing a member clears their issue assignments and records the
+change in each affected issue's activity history.
+
+Activity history is append-only product history, not a notification system. It
+currently records issue creation and edits, status, priority, assignee, label,
+comment, project, invitation, and membership changes. Issue-specific events are
+shown in the issue drawer.
+
+Current collaboration limitations:
+
+- Invitation email delivery is not implemented; invite links must be shared
+  manually.
+- There are no notifications, mentions, presence, or real-time updates.
+- Owner transfer and promotion to owner are not exposed in v1.
+- Rate limiting is an in-process guardrail and is not shared across Vercel
+  instances.
 
 ## Count Badge Foundation
 
@@ -693,7 +767,10 @@ Open the deployed URL in a clean browser session:
 12. Use status, priority, label, and search filters.
 13. Switch workspaces if more than one exists.
 14. Open Views and Settings.
-15. Confirm no secret values appear in browser output, Vercel logs, or docs.
+15. Invite a second Clerk account, accept the invitation with the matching
+    email, and assign an issue to that member.
+16. Confirm issue activity records the collaboration changes.
+17. Confirm no secret values appear in browser output, Vercel logs, or docs.
 
 Optional production verifier commands can be run only from a safe environment
 where production database env vars are intentionally loaded:
@@ -706,6 +783,9 @@ npm run db:verify-comments
 npm run db:verify-labels
 npm run db:verify-filters
 npm run db:verify-demo
+npm run db:verify-views
+npm run db:verify-settings
+npm run db:verify-counts
 ```
 
 ### Common Deployment Troubleshooting

@@ -1,9 +1,9 @@
 import "server-only";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
-import type { User as ClerkUser } from "@clerk/nextjs/server";
+import { cache } from "react";
 import type { User } from "@/generated/prisma/client";
-import { getClerkDisplayName } from "@/lib/auth-user";
+import { syncCurrentUser } from "@/lib/auth-sync";
 import { getPrisma } from "@/lib/prisma";
 
 export function isClerkConfigured() {
@@ -51,45 +51,40 @@ export class CurrentUserError extends Error {
   }
 }
 
-export async function getOrCreateCurrentUser(): Promise<CurrentUserResult> {
-  if (!isClerkConfigured()) {
-    return { status: "missing_clerk_env" };
-  }
+const getOrCreateCurrentUserForRequest = cache(
+  async (): Promise<CurrentUserResult> => {
+    if (!isClerkConfigured()) {
+      return { status: "missing_clerk_env" };
+    }
 
-  if (!isDatabaseConfigured()) {
-    return { status: "missing_database_url" };
-  }
+    if (!isDatabaseConfigured()) {
+      return { status: "missing_database_url" };
+    }
 
-  const authState = await auth();
+    const authState = await auth();
 
-  if (!authState.isAuthenticated || !authState.userId) {
-    return { status: "unauthenticated" };
-  }
+    if (!authState.isAuthenticated || !authState.userId) {
+      return { status: "unauthenticated" };
+    }
 
-  const clerkUser = await currentUser();
+    const clerkUser = await currentUser();
 
-  if (!clerkUser) {
-    return { status: "missing_clerk_user" };
-  }
+    if (!clerkUser) {
+      return { status: "missing_clerk_user" };
+    }
 
-  const email = getPrimaryEmail(clerkUser);
-
-  const user = await getPrisma().user.upsert({
-    where: { clerkUserId: authState.userId },
-    create: {
+    const user = await syncCurrentUser({
+      userStore: getPrisma().user,
       clerkUserId: authState.userId,
-      email,
-      name: getClerkDisplayName(clerkUser),
-      imageUrl: clerkUser.imageUrl,
-    },
-    update: {
-      email,
-      name: getClerkDisplayName(clerkUser),
-      imageUrl: clerkUser.imageUrl,
-    },
-  });
+      clerkUser,
+    });
 
-  return { status: "ready", user };
+    return { status: "ready", user };
+  },
+);
+
+export async function getOrCreateCurrentUser(): Promise<CurrentUserResult> {
+  return getOrCreateCurrentUserForRequest();
 }
 
 export async function getCurrentUserOrNull() {
@@ -119,16 +114,4 @@ function getCurrentUserErrorMessage(status: Exclude<CurrentUserResult["status"],
     case "missing_clerk_user":
       return "Current Clerk user could not be loaded.";
   }
-}
-
-function getPrimaryEmail(user: ClerkUser) {
-  const email =
-    user.primaryEmailAddress?.emailAddress ||
-    user.emailAddresses.find((address) => address.emailAddress)?.emailAddress;
-
-  if (!email) {
-    throw new Error("Clerk user does not have an email address.");
-  }
-
-  return email;
 }

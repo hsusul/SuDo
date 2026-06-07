@@ -11,6 +11,7 @@ import {
   isClerkConfigured,
   isDatabaseConfigured,
 } from "@/lib/auth";
+import { getIssueActivity } from "@/lib/activity";
 import { getIssueComments } from "@/lib/comment";
 import { getWorkspaceNavigationCounts } from "@/lib/counts";
 import { parseIssueFilters, type IssueFilters } from "@/lib/issue-filter-validation";
@@ -19,6 +20,10 @@ import { getWorkspaceLabels } from "@/lib/label";
 import { getWorkspaceProjects } from "@/lib/project";
 import { getProjectViewSummary, type ProjectViewSummary } from "@/lib/view";
 import { getUserWorkspaces, type UserWorkspace } from "@/lib/workspace";
+import {
+  getWorkspaceInvitations,
+  getWorkspaceMembers,
+} from "@/lib/workspace-collaboration";
 
 export type WorkspaceView = "projects" | "issues" | "views" | "settings";
 
@@ -89,8 +94,15 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
     getWorkspaceProjects(currentWorkspace.workspace.id),
     getWorkspaceNavigationCounts(currentWorkspace.workspace.id),
   ]);
-  const workspaceLabels =
-    view === "issues" ? await getWorkspaceLabels(currentWorkspace.workspace.id) : [];
+  const [workspaceLabels, workspaceMembers, workspaceInvitations] = await Promise.all([
+    view === "issues" ? getWorkspaceLabels(currentWorkspace.workspace.id) : [],
+    view === "issues" || view === "settings"
+      ? getWorkspaceMembers(currentWorkspace.workspace.id)
+      : [],
+    view === "settings"
+      ? getWorkspaceInvitations(currentWorkspace.workspace.id)
+      : [],
+  ]);
   const requestedIssue =
     view === "issues" && params?.issue ? await getIssueForDetail(params.issue) : null;
   const selectedIssue =
@@ -103,8 +115,10 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
     view === "issues" && selectedProject
       ? await getProjectIssues(selectedProject.id, issueFilters)
       : [];
-  const selectedIssueComments =
-    view === "issues" && selectedIssue ? await getIssueComments(selectedIssue.id) : [];
+  const [selectedIssueComments, selectedIssueActivity] = await Promise.all([
+    view === "issues" && selectedIssue ? getIssueComments(selectedIssue.id) : [],
+    view === "issues" && selectedIssue ? getIssueActivity(selectedIssue.id) : [],
+  ]);
   const viewSummary =
     view === "views" && selectedProject ? await getProjectViewSummary(selectedProject.id) : null;
 
@@ -125,6 +139,7 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
           isDemo: currentWorkspace.workspace.isDemo,
         }}
         currentUser={{
+          id: userResult.user.id,
           name: userResult.user.name,
           email: userResult.user.email,
           imageUrl: userResult.user.imageUrl,
@@ -146,6 +161,14 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
           description: issue.description,
           status: issue.status.type,
           priority: issue.priority,
+          assignee: issue.assignee
+            ? {
+                id: issue.assignee.id,
+                name: issue.assignee.name,
+                email: issue.assignee.email,
+                imageUrl: issue.assignee.imageUrl,
+              }
+            : null,
           createdAt: issue.createdAt.toISOString(),
           updatedAt: issue.updatedAt.toISOString(),
           labels: issue.labels.map((issueLabel) => ({
@@ -159,6 +182,29 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
           name: label.name,
           color: label.color,
         }))}
+        workspaceMembers={workspaceMembers.map((membership) => ({
+          id: membership.id,
+          role: membership.role,
+          user: {
+            id: membership.user.id,
+            name: membership.user.name,
+            email: membership.user.email,
+            imageUrl: membership.user.imageUrl,
+          },
+        }))}
+        workspaceInvitations={workspaceInvitations.map((invitation) => ({
+          id: invitation.id,
+          email: invitation.email,
+          role: invitation.role,
+          status: invitation.effectiveStatus,
+          createdAt: invitation.createdAt.toISOString(),
+          expiresAt: invitation.expiresAt.toISOString(),
+          invitedBy: {
+            name: invitation.invitedBy.name,
+            email: invitation.invitedBy.email,
+          },
+        }))}
+        currentMembershipRole={currentWorkspace.role}
         issueFilters={issueFilters}
         selectedIssue={
           selectedIssue
@@ -170,6 +216,14 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
                 description: selectedIssue.description,
                 status: selectedIssue.status.type,
                 priority: selectedIssue.priority,
+                assignee: selectedIssue.assignee
+                  ? {
+                      id: selectedIssue.assignee.id,
+                      name: selectedIssue.assignee.name,
+                      email: selectedIssue.assignee.email,
+                      imageUrl: selectedIssue.assignee.imageUrl,
+                    }
+                  : null,
                 createdAt: selectedIssue.createdAt.toISOString(),
                 updatedAt: selectedIssue.updatedAt.toISOString(),
                 project: {
@@ -192,6 +246,20 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
                     name: comment.author.name,
                     imageUrl: comment.author.imageUrl,
                   },
+                })),
+                activity: selectedIssueActivity.map((activity) => ({
+                  id: activity.id,
+                  action: activity.action,
+                  metadata: normalizeActivityMetadata(activity.metadata),
+                  createdAt: activity.createdAt.toISOString(),
+                  actor: activity.actor
+                    ? {
+                        id: activity.actor.id,
+                        name: activity.actor.name,
+                        email: activity.actor.email,
+                        imageUrl: activity.actor.imageUrl,
+                      }
+                    : null,
                 })),
               }
             : null
@@ -256,17 +324,28 @@ function WorkspaceHomeState({
   selectedProjectKey,
   issues,
   workspaceLabels,
+  workspaceMembers,
+  workspaceInvitations,
+  currentMembershipRole,
   issueFilters,
   selectedIssue,
   viewSummary,
 }: {
   view: WorkspaceView;
   workspace: { id: string; name: string; slug: string; isDemo: boolean };
-  currentUser: { name: string | null; email: string; imageUrl: string | null };
+  currentUser: {
+    id: string;
+    name: string | null;
+    email: string;
+    imageUrl: string | null;
+  };
   projects: ProjectListItem[];
   selectedProjectKey: string | null;
   issues: IssueListItem[];
   workspaceLabels: IssueLabelItem[];
+  workspaceMembers: WorkspaceMemberItem[];
+  workspaceInvitations: WorkspaceInvitationItem[];
+  currentMembershipRole: "owner" | "admin" | "member";
   issueFilters: IssueFilters;
   selectedIssue: IssueListItemWithProject | null;
   viewSummary: ProjectViewSummary | null;
@@ -300,6 +379,7 @@ function WorkspaceHomeState({
           projects={issueProjects}
           issues={issues}
           workspaceLabels={workspaceLabels}
+          workspaceMembers={workspaceMembers}
           filters={issueFilters}
           selectedIssue={selectedIssue}
         />
@@ -314,6 +394,9 @@ function WorkspaceHomeState({
         <SettingsPanel
           user={currentUser}
           workspace={{ id: workspace.id, name: workspace.name }}
+          currentRole={currentMembershipRole}
+          members={workspaceMembers}
+          invitations={workspaceInvitations}
         />
       )}
     </div>
@@ -338,6 +421,18 @@ type IssueListItemWithProject = IssueListItem & {
       imageUrl: string | null;
     };
   }>;
+  activity: Array<{
+    id: string;
+    action: string;
+    metadata: Record<string, string | string[] | null> | null;
+    createdAt: string;
+    actor: {
+      id: string;
+      name: string | null;
+      email: string;
+      imageUrl: string | null;
+    } | null;
+  }>;
 };
 
 type IssueLabelItem = {
@@ -345,6 +440,53 @@ type IssueLabelItem = {
   name: string;
   color: string;
 };
+
+type WorkspaceMemberItem = {
+  id: string;
+  role: "owner" | "admin" | "member";
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    imageUrl: string | null;
+  };
+};
+
+type WorkspaceInvitationItem = {
+  id: string;
+  email: string;
+  role: "owner" | "admin" | "member";
+  status: "pending" | "accepted" | "revoked" | "expired";
+  createdAt: string;
+  expiresAt: string;
+  invitedBy: {
+    name: string | null;
+    email: string;
+  };
+};
+
+function normalizeActivityMetadata(
+  metadata: unknown,
+): Record<string, string | string[] | null> | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const normalized: Record<string, string | string[] | null> = {};
+
+  for (const [key, value] of Object.entries(metadata)) {
+    if (
+      typeof value === "string" ||
+      value === null ||
+      (Array.isArray(value) &&
+        value.every((item) => typeof item === "string"))
+    ) {
+      normalized[key] = value;
+    }
+  }
+
+  return normalized;
+}
 
 function SetupState({
   clerkConfigured,

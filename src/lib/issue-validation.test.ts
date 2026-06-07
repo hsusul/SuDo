@@ -32,12 +32,14 @@ describe("issueInputSchema", () => {
         description: "   ",
         status: "todo",
         priority: "high",
+        assigneeId: "",
       }),
     ).toEqual({
       title: "Add project issue list",
       description: null,
       status: "todo",
       priority: "high",
+      assigneeId: null,
     });
   });
 
@@ -48,8 +50,35 @@ describe("issueInputSchema", () => {
         description: "x".repeat(2001),
         status: "todo",
         priority: "high",
+        assigneeId: "",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("issue assignee validation", () => {
+  it("preserves a selected assignee", () => {
+    expect(
+      issueInputSchema.parse({
+        title: "Assign issue",
+        description: "",
+        status: "todo",
+        priority: "medium",
+        assigneeId: "user-1",
+      }).assigneeId,
+    ).toBe("user-1");
+  });
+
+  it("normalizes an unassigned value to null", () => {
+    expect(
+      issueInputSchema.parse({
+        title: "Clear assignee",
+        description: "",
+        status: "todo",
+        priority: "medium",
+        assigneeId: "",
+      }).assigneeId,
+    ).toBeNull();
   });
 });
 

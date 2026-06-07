@@ -30,7 +30,9 @@ export function WorkspaceOnboardingForm() {
                 Open a realistic workspace with projects, issues, labels, and comments.
               </p>
               {demoState.error ? (
-                <p className="mt-2 text-sm text-destructive">{demoState.error}</p>
+                <p role="alert" className="mt-2 text-sm text-destructive">
+                  {demoState.error}
+                </p>
               ) : null}
             </div>
           </div>
@@ -63,7 +65,9 @@ export function WorkspaceOnboardingForm() {
             />
           </div>
           {state.error ? (
-            <p className="mt-2 text-sm text-destructive">{state.error}</p>
+            <p role="alert" className="mt-2 text-sm text-destructive">
+              {state.error}
+            </p>
           ) : null}
         </div>
         <SubmitButton />

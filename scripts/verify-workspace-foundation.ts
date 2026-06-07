@@ -11,7 +11,7 @@ type VerificationResult = {
   duplicateClerkUserGroups: number;
   duplicateMembershipPairGroups: number;
   allMembershipsLinkExistingRows: boolean;
-  allMembershipsAreOwner: boolean;
+  allMembershipRolesValid: boolean;
   allWorkspacesHaveOwner: boolean;
   workspaceSummaries: Array<{
     workspaceIndex: number;
@@ -102,8 +102,11 @@ async function main() {
           users.some((user) => user.id === membership.userId) &&
           workspaces.some((workspace) => workspace.id === membership.workspaceId),
       ),
-      allMembershipsAreOwner:
-        memberships.length > 0 && memberships.every((membership) => membership.role === "owner"),
+      allMembershipRolesValid:
+        memberships.length > 0 &&
+        memberships.every((membership) =>
+          ["owner", "admin", "member"].includes(membership.role),
+        ),
       allWorkspacesHaveOwner:
         workspaces.length > 0 &&
         workspaces.every((workspace) => workspace.members.some((member) => member.role === "owner")),
@@ -125,6 +128,7 @@ async function main() {
       result.duplicateClerkUserGroups > 0 ||
       result.duplicateMembershipPairGroups > 0 ||
       !result.allMembershipsLinkExistingRows ||
+      !result.allMembershipRolesValid ||
       !result.allWorkspacesHaveOwner
     ) {
       process.exitCode = 1;

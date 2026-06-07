@@ -160,7 +160,11 @@ function CreateProjectForm({
           className="sudo-textarea"
         />
       </div>
-      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      ) : null}
       <ProjectSubmitButton label="Create project" pendingLabel="Creating..." icon={<Plus className="size-4" />} />
     </form>
   );
@@ -291,7 +295,11 @@ function EditProjectForm({
           />
         </div>
       </div>
-      {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      ) : null}
       <div className="flex items-center gap-2">
         <ProjectSubmitButton label="Save changes" pendingLabel="Saving..." icon={<Check className="size-4" />} />
         <Button type="button" variant="ghost" onClick={onCancel}>
@@ -317,7 +325,11 @@ function ArchiveProjectForm({
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
       <ArchiveButton />
-      {state.error ? <p className="sr-only">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-xs text-destructive">
+          {state.error}
+        </p>
+      ) : null}
     </form>
   );
 }

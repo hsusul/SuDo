@@ -1,15 +1,10 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
+import { activityActions } from "./activity-events";
+import { DEFAULT_ISSUE_STATUSES } from "./default-issue-statuses";
 import { slugifyLabelName } from "./label-validation";
 import { slugifyWorkspaceName } from "./workspace-validation";
 
 const DEMO_WORKSPACE_NAME = "SuDo Demo Workspace";
-
-const DEFAULT_STATUSES = [
-  { type: "backlog", name: "Backlog", color: "#737373", sortOrder: 0, isDefault: true },
-  { type: "todo", name: "Todo", color: "#a3a3a3", sortOrder: 1, isDefault: false },
-  { type: "in_progress", name: "In Progress", color: "#5eead4", sortOrder: 2, isDefault: false },
-  { type: "done", name: "Done", color: "#86efac", sortOrder: 3, isDefault: false },
-] as const;
 
 const DEMO_LABELS = [
   { name: "Bug", color: "red" },
@@ -217,7 +212,7 @@ export async function createDemoWorkspaceForUser({
     });
 
     const statuses = await Promise.all(
-      DEFAULT_STATUSES.map((status) =>
+      DEFAULT_ISSUE_STATUSES.map((status) =>
         tx.issueStatus.create({
           data: {
             workspaceId: workspace.id,
@@ -260,6 +255,20 @@ export async function createDemoWorkspaceForUser({
         }),
       ),
     );
+
+    await tx.activityLog.createMany({
+      data: projects.map((project) => ({
+        workspaceId: workspace.id,
+        projectId: project.id,
+        actorId: userId,
+        action: activityActions.projectCreated,
+        metadata: {
+          key: project.key,
+          name: project.name,
+        },
+      })),
+    });
+
     const projectByKey = new Map(projects.map((project) => [project.key, project]));
     const issueNumbersByProject = new Map<string, number>();
     let commentCount = 0;
@@ -290,6 +299,22 @@ export async function createDemoWorkspaceForUser({
         },
       });
 
+      await tx.activityLog.create({
+        data: {
+          workspaceId: workspace.id,
+          projectId: project.id,
+          issueId: issue.id,
+          actorId: userId,
+          action: activityActions.issueCreated,
+          metadata: {
+            issueKey: issue.issueKey,
+            status: seedIssue.status,
+            priority: seedIssue.priority,
+            assignee: null,
+          },
+        },
+      });
+
       for (const labelName of seedIssue.labels) {
         const label = labelByName.get(labelName);
 
@@ -300,16 +325,41 @@ export async function createDemoWorkspaceForUser({
               labelId: label.id,
             },
           });
+          await tx.activityLog.create({
+            data: {
+              workspaceId: workspace.id,
+              projectId: project.id,
+              issueId: issue.id,
+              actorId: userId,
+              action: activityActions.issueLabelAdded,
+              metadata: {
+                labelId: label.id,
+                labelName: label.name,
+              },
+            },
+          });
         }
       }
 
       for (const body of seedIssue.comments) {
-        await tx.comment.create({
+        const comment = await tx.comment.create({
           data: {
             workspaceId: workspace.id,
             issueId: issue.id,
             authorId: userId,
             body,
+          },
+        });
+        await tx.activityLog.create({
+          data: {
+            workspaceId: workspace.id,
+            projectId: project.id,
+            issueId: issue.id,
+            actorId: userId,
+            action: activityActions.issueCommentAdded,
+            metadata: {
+              commentId: comment.id,
+            },
           },
         });
         commentCount += 1;

@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getSafeActionErrorMessage } from "@/lib/action-error";
 import { requireCurrentUser } from "@/lib/auth";
 import { createDemoWorkspaceForUser } from "@/lib/demo-seed";
+import { assertMutationAllowed } from "@/lib/mutation-rate-limit";
 import { getPrisma } from "@/lib/prisma";
 import { createWorkspaceForUser } from "@/lib/workspace";
 import { parseWorkspaceName } from "@/lib/workspace-validation";
@@ -27,6 +29,11 @@ export async function createWorkspaceAction(
 
   try {
     const user = await requireCurrentUser();
+    assertMutationAllowed({
+      key: `workspace:create:${user.id}`,
+      limit: 10,
+      windowMs: 60 * 60_000,
+    });
     const workspace = await createWorkspaceForUser({
       userId: user.id,
       name: parsedName.data,
@@ -46,10 +53,10 @@ export async function createWorkspaceAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Workspace could not be created. Check your auth and database setup.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Workspace could not be created. Check your auth and database setup.",
+      ),
     };
   }
 }
@@ -61,6 +68,11 @@ export async function createDemoWorkspaceAction(
 
   try {
     const user = await requireCurrentUser();
+    assertMutationAllowed({
+      key: `workspace:demo:${user.id}`,
+      limit: 3,
+      windowMs: 60 * 60_000,
+    });
     const demo = await createDemoWorkspaceForUser({
       prisma: getPrisma(),
       userId: user.id,
@@ -79,10 +91,10 @@ export async function createDemoWorkspaceAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Demo workspace could not be created. Check your auth and database setup.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Demo workspace could not be created. Check your auth and database setup.",
+      ),
     };
   }
 }

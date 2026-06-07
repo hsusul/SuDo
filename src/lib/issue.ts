@@ -1,7 +1,15 @@
 import "server-only";
 
 import type { IssueStatusType, Prisma } from "@/generated/prisma/client";
+import {
+  activityActions,
+  buildIssueUpdateActivityEvents,
+} from "@/lib/activity-events";
+import { resolveWorkspaceAssignee } from "@/lib/assignee";
+import { DEFAULT_ISSUE_STATUSES } from "@/lib/default-issue-statuses";
+import { runWithIssueNumberRetry } from "@/lib/issue-numbering";
 import { getPrisma } from "@/lib/prisma";
+import { assertMutationAllowed } from "@/lib/mutation-rate-limit";
 import { requireWorkspaceAccess } from "@/lib/workspace";
 import {
   issueInputSchema,
@@ -13,25 +21,6 @@ import {
   type IssueFilterInput,
 } from "@/lib/issue-filter-validation";
 
-const DEFAULT_STATUSES: Array<{
-  type: IssueStatusValue;
-  name: string;
-  color: string;
-  sortOrder: number;
-  isDefault: boolean;
-}> = [
-  { type: "backlog", name: "Backlog", color: "#737373", sortOrder: 0, isDefault: true },
-  { type: "todo", name: "Todo", color: "#a3a3a3", sortOrder: 1, isDefault: false },
-  {
-    type: "in_progress",
-    name: "In Progress",
-    color: "#5eead4",
-    sortOrder: 2,
-    isDefault: false,
-  },
-  { type: "done", name: "Done", color: "#86efac", sortOrder: 3, isDefault: false },
-];
-
 export type ProjectIssue = Awaited<ReturnType<typeof getProjectIssues>>[number];
 export type IssueDetail = NonNullable<Awaited<ReturnType<typeof getIssueForDetail>>>;
 
@@ -41,7 +30,6 @@ export async function getProjectIssues(
 ) {
   const project = await getActiveProject(projectId);
   await requireWorkspaceAccess(project.workspaceId);
-  await ensureDefaultIssueStatuses(project.workspaceId);
   const filters = parseIssueFilters(filterInput);
   const where: Prisma.IssueWhereInput = {
     projectId,
@@ -97,6 +85,14 @@ export async function getProjectIssues(
           },
         },
       },
+      assignee: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          imageUrl: true,
+        },
+      },
     },
     orderBy: [{ updatedAt: "desc" }, { issueNumber: "desc" }],
   });
@@ -125,6 +121,14 @@ export async function getIssueForDetail(issueId: string) {
           },
         },
       },
+      assignee: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          imageUrl: true,
+        },
+      },
     },
   });
 
@@ -147,40 +151,83 @@ export async function createIssueForProject({
   const project = await getActiveProject(projectId);
   const access = await requireWorkspaceAccess(project.workspaceId);
   const data = issueInputSchema.parse(input);
-  const statuses = await ensureDefaultIssueStatuses(project.workspaceId);
-  const status = getStatusOrThrow(statuses, data.status);
-
-  return getPrisma().$transaction(async (tx) => {
-    const aggregate = await tx.issue.aggregate({
-      where: { projectId },
-      _max: { issueNumber: true },
-    });
-    const issueNumber = (aggregate._max.issueNumber ?? 0) + 1;
-    const issueKey = `${project.key}-${issueNumber}`;
-
-    return tx.issue.create({
-      data: {
-        workspaceId: project.workspaceId,
-        projectId,
-        statusId: status.id,
-        creatorId: access.user.id,
-        issueNumber,
-        issueKey,
-        title: data.title,
-        description: data.description,
-        priority: data.priority,
-        completedAt: data.status === "done" ? new Date() : null,
-      },
-      include: {
-        status: true,
-        labels: {
-          include: {
-            label: true,
-          },
-        },
-      },
-    });
+  assertMutationAllowed({
+    key: `issue:create:${access.user.id}`,
+    limit: 30,
+    windowMs: 60_000,
   });
+  const statuses = await ensureDefaultIssueStatusesForWrite(project.workspaceId);
+  const status = getStatusOrThrow(statuses, data.status);
+  const assignee = await resolveWorkspaceAssignee({
+    workspaceId: project.workspaceId,
+    assigneeId: data.assigneeId,
+    findMembership: findAssigneeMembership,
+  });
+
+  return runWithIssueNumberRetry(() =>
+    getPrisma().$transaction(
+      async (tx) => {
+        const aggregate = await tx.issue.aggregate({
+          where: { projectId },
+          _max: { issueNumber: true },
+        });
+        const issueNumber = (aggregate._max.issueNumber ?? 0) + 1;
+        const issueKey = `${project.key}-${issueNumber}`;
+
+        const issue = await tx.issue.create({
+          data: {
+            workspaceId: project.workspaceId,
+            projectId,
+            statusId: status.id,
+            creatorId: access.user.id,
+            issueNumber,
+            issueKey,
+            title: data.title,
+            description: data.description,
+            priority: data.priority,
+            assigneeId: assignee?.id ?? null,
+            completedAt: data.status === "done" ? new Date() : null,
+          },
+          include: {
+            status: true,
+            labels: {
+              include: {
+                label: true,
+              },
+            },
+            assignee: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                imageUrl: true,
+              },
+            },
+          },
+        });
+
+        await tx.activityLog.create({
+          data: {
+            workspaceId: project.workspaceId,
+            issueId: issue.id,
+            projectId,
+            actorId: access.user.id,
+            action: activityActions.issueCreated,
+            metadata: {
+              issueKey,
+              title: issue.title,
+              status: data.status,
+              priority: data.priority,
+              assignee: assignee?.name ?? assignee?.email ?? null,
+            },
+          },
+        });
+
+        return issue;
+      },
+      { isolationLevel: "Serializable" },
+    ),
+  );
 }
 
 export async function updateIssue({
@@ -191,28 +238,78 @@ export async function updateIssue({
   input: IssueInput;
 }) {
   const issue = await getActiveIssueForMutation(issueId);
-  await requireWorkspaceAccess(issue.workspaceId);
+  const access = await requireWorkspaceAccess(issue.workspaceId);
   const data = issueInputSchema.parse(input);
-  const statuses = await ensureDefaultIssueStatuses(issue.workspaceId);
+  const statuses = await ensureDefaultIssueStatusesForWrite(issue.workspaceId);
   const status = getStatusOrThrow(statuses, data.status);
-
-  return getPrisma().issue.update({
-    where: { id: issueId },
-    data: {
+  const assignee = await resolveWorkspaceAssignee({
+    workspaceId: issue.workspaceId,
+    assigneeId: data.assigneeId,
+    findMembership: findAssigneeMembership,
+  });
+  const activityEvents = buildIssueUpdateActivityEvents({
+    previous: {
+      title: issue.title,
+      description: issue.description,
+      status: issue.status.type,
+      priority: issue.priority,
+      assigneeId: issue.assignee?.id ?? null,
+      assigneeName: issue.assignee?.name ?? issue.assignee?.email ?? null,
+    },
+    next: {
       title: data.title,
       description: data.description,
-      statusId: status.id,
+      status: data.status,
       priority: data.priority,
-      completedAt: data.status === "done" ? (issue.completedAt ?? new Date()) : null,
+      assigneeId: assignee?.id ?? null,
+      assigneeName: assignee?.name ?? assignee?.email ?? null,
     },
-    include: {
-      status: true,
-      labels: {
-        include: {
-          label: true,
+  });
+
+  return getPrisma().$transaction(async (tx) => {
+    const updatedIssue = await tx.issue.update({
+      where: { id: issueId },
+      data: {
+        title: data.title,
+        description: data.description,
+        statusId: status.id,
+        priority: data.priority,
+        assigneeId: assignee?.id ?? null,
+        completedAt:
+          data.status === "done" ? (issue.completedAt ?? new Date()) : null,
+      },
+      include: {
+        status: true,
+        labels: {
+          include: {
+            label: true,
+          },
+        },
+        assignee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            imageUrl: true,
+          },
         },
       },
-    },
+    });
+
+    if (activityEvents.length > 0) {
+      await tx.activityLog.createMany({
+        data: activityEvents.map((event) => ({
+          workspaceId: issue.workspaceId,
+          issueId,
+          projectId: issue.projectId,
+          actorId: access.user.id,
+          action: event.action,
+          metadata: event.metadata,
+        })),
+      });
+    }
+
+    return updatedIssue;
   });
 }
 
@@ -254,8 +351,23 @@ async function getActiveIssueForMutation(issueId: string) {
       workspaceId: true,
       projectId: true,
       statusId: true,
+      title: true,
+      description: true,
+      priority: true,
       completedAt: true,
       archivedAt: true,
+      status: {
+        select: {
+          type: true,
+        },
+      },
+      assignee: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     },
   });
 
@@ -266,9 +378,23 @@ async function getActiveIssueForMutation(issueId: string) {
   return issue;
 }
 
-async function ensureDefaultIssueStatuses(workspaceId: string) {
+function findAssigneeMembership(workspaceId: string, userId: string) {
+  return getPrisma().workspaceMember.findUnique({
+    where: {
+      workspaceId_userId: {
+        workspaceId,
+        userId,
+      },
+    },
+    include: {
+      user: true,
+    },
+  });
+}
+
+async function ensureDefaultIssueStatusesForWrite(workspaceId: string) {
   await getPrisma().$transaction(
-    DEFAULT_STATUSES.map((status) =>
+    DEFAULT_ISSUE_STATUSES.map((status) =>
       getPrisma().issueStatus.upsert({
         where: {
           workspaceId_type: {

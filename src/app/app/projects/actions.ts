@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getSafeActionErrorMessage } from "@/lib/action-error";
 import {
   archiveProject,
   createProjectForWorkspace,
@@ -38,10 +39,10 @@ export async function createProjectAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Project could not be created. Check your workspace access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Project could not be created. Check your workspace access.",
+      ),
     };
   }
 }
@@ -71,10 +72,10 @@ export async function updateProjectAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Project could not be updated. Check your workspace access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Project could not be updated. Check your workspace access.",
+      ),
     };
   }
 }
@@ -96,10 +97,10 @@ export async function archiveProjectAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Project could not be archived. Check your workspace access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Project could not be archived. Check your workspace access.",
+      ),
     };
   }
 }

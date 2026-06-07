@@ -1,10 +1,17 @@
 import { Boxes, CheckCircle2, Database, ShieldCheck, UserRound } from "lucide-react";
 import { WorkspaceDangerZone } from "@/components/workspace-danger-zone";
+import {
+  WorkspaceMembersPanel,
+  type WorkspaceInvitationItem,
+  type WorkspaceMemberItem,
+} from "@/components/workspace-members-panel";
 import { AppPanel, AppPanelHeader } from "@/components/ui/app-panel";
 import { PageHeader } from "@/components/ui/page-header";
+import { canDeleteWorkspace } from "@/lib/workspace-delete";
 
 export type SettingsPanelProps = {
   user: {
+    id: string;
     name: string | null;
     email: string;
     imageUrl: string | null;
@@ -13,9 +20,18 @@ export type SettingsPanelProps = {
     id: string;
     name: string;
   };
+  currentRole: "owner" | "admin" | "member";
+  members: WorkspaceMemberItem[];
+  invitations: WorkspaceInvitationItem[];
 };
 
-export function SettingsPanel({ user, workspace }: SettingsPanelProps) {
+export function SettingsPanel({
+  user,
+  workspace,
+  currentRole,
+  members,
+  invitations,
+}: SettingsPanelProps) {
   const initials = getInitials(user.name ?? user.email);
 
   return (
@@ -71,6 +87,14 @@ export function SettingsPanel({ user, workspace }: SettingsPanelProps) {
         </AppPanel>
       </div>
 
+      <WorkspaceMembersPanel
+        workspaceId={workspace.id}
+        currentUserId={user.id}
+        currentRole={currentRole}
+        members={members}
+        invitations={invitations}
+      />
+
       <AppPanel>
         <AppPanelHeader>
           <div className="flex items-center gap-2">
@@ -100,7 +124,21 @@ export function SettingsPanel({ user, workspace }: SettingsPanelProps) {
         </div>
       </AppPanel>
 
-      <WorkspaceDangerZone workspace={workspace} />
+      {canDeleteWorkspace(currentRole) ? (
+        <WorkspaceDangerZone workspace={workspace} />
+      ) : (
+        <AppPanel>
+          <AppPanelHeader>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-[#8a8f98]" aria-hidden="true" />
+              <h2 className="text-sm font-medium">Owner-only controls</h2>
+            </div>
+            <p className="mt-1 text-xs text-[#8a8f98]">
+              Only workspace owners can permanently delete this workspace.
+            </p>
+          </AppPanelHeader>
+        </AppPanel>
+      )}
     </div>
   );
 }

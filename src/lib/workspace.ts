@@ -1,19 +1,18 @@
 import "server-only";
 
-import type { Workspace, WorkspaceMember } from "@/generated/prisma/client";
+import { cache } from "react";
+import { getDefaultIssueStatusData } from "@/lib/default-issue-statuses";
 import { requireCurrentUser } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
+import {
+  resolveWorkspaceAccess,
+  type WorkspaceAccess,
+} from "@/lib/workspace-access";
+import { WorkspacePermissionError } from "@/lib/workspace-permissions";
 import { slugifyWorkspaceName } from "@/lib/workspace-validation";
+import type { WorkspaceRole } from "@/generated/prisma/client";
 
-export type UserWorkspace = WorkspaceMember & {
-  workspace: Workspace;
-};
-
-export type WorkspaceAccess = {
-  user: Awaited<ReturnType<typeof requireCurrentUser>>;
-  membership: UserWorkspace;
-  workspace: Workspace;
-};
+export type { UserWorkspace, WorkspaceAccess } from "@/lib/workspace-access";
 
 export async function getUserWorkspaces(userId?: string) {
   const resolvedUserId = userId ?? (await requireCurrentUser()).id;
@@ -34,30 +33,44 @@ export async function getUserWorkspaces(userId?: string) {
   });
 }
 
+const requireWorkspaceAccessForRequest = cache(
+  async (workspaceId: string): Promise<WorkspaceAccess> => {
+    const user = await requireCurrentUser();
+
+    return resolveWorkspaceAccess({
+      findMembership: (resolvedWorkspaceId, userId) =>
+        getPrisma().workspaceMember.findUnique({
+          where: {
+            workspaceId_userId: {
+              workspaceId: resolvedWorkspaceId,
+              userId,
+            },
+          },
+          include: {
+            workspace: true,
+          },
+        }),
+      user,
+      workspaceId,
+    });
+  },
+);
+
 export async function requireWorkspaceAccess(workspaceId: string): Promise<WorkspaceAccess> {
-  const user = await requireCurrentUser();
+  return requireWorkspaceAccessForRequest(workspaceId);
+}
 
-  const membership = await getPrisma().workspaceMember.findUnique({
-    where: {
-      workspaceId_userId: {
-        workspaceId,
-        userId: user.id,
-      },
-    },
-    include: {
-      workspace: true,
-    },
-  });
+export async function requireWorkspaceRole(
+  workspaceId: string,
+  allowedRoles: readonly WorkspaceRole[],
+) {
+  const access = await requireWorkspaceAccess(workspaceId);
 
-  if (!membership || membership.workspace.archivedAt) {
-    throw new Error("Workspace access denied.");
+  if (!allowedRoles.includes(access.membership.role)) {
+    throw new WorkspacePermissionError();
   }
 
-  return {
-    user,
-    membership,
-    workspace: membership.workspace,
-  };
+  return access;
 }
 
 export async function createWorkspaceForUser({
@@ -101,6 +114,10 @@ export async function createWorkspaceForUser({
         userId,
         role: "owner",
       },
+    });
+
+    await tx.issueStatus.createMany({
+      data: getDefaultIssueStatusData(workspace.id),
     });
 
     return workspace;

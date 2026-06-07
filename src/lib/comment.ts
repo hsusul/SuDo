@@ -1,7 +1,8 @@
 import "server-only";
 
-import { requireCurrentUser } from "@/lib/auth";
+import { activityActions } from "@/lib/activity-events";
 import { commentInputSchema, type CommentInput } from "@/lib/comment-validation";
+import { assertMutationAllowed } from "@/lib/mutation-rate-limit";
 import { getPrisma } from "@/lib/prisma";
 import { requireWorkspaceAccess } from "@/lib/workspace";
 
@@ -38,27 +39,48 @@ export async function createCommentForIssue({
   issueId: string;
   input: CommentInput;
 }) {
-  const user = await requireCurrentUser();
   const issue = await getActiveIssueForComment(issueId);
   const access = await requireWorkspaceAccess(issue.workspaceId);
   const data = commentInputSchema.parse(input);
+  assertMutationAllowed({
+    key: `comment:create:${access.user.id}`,
+    limit: 30,
+    windowMs: 60_000,
+  });
 
-  return getPrisma().comment.create({
-    data: {
-      workspaceId: access.workspace.id,
-      issueId: issue.id,
-      authorId: user.id,
-      body: data.body,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          name: true,
-          imageUrl: true,
+  return getPrisma().$transaction(async (tx) => {
+    const comment = await tx.comment.create({
+      data: {
+        workspaceId: access.workspace.id,
+        issueId: issue.id,
+        authorId: access.user.id,
+        body: data.body,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            imageUrl: true,
+          },
         },
       },
-    },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        workspaceId: access.workspace.id,
+        issueId: issue.id,
+        projectId: issue.projectId,
+        actorId: access.user.id,
+        action: activityActions.issueCommentAdded,
+        metadata: {
+          commentId: comment.id,
+        },
+      },
+    });
+
+    return comment;
   });
 }
 
@@ -68,6 +90,7 @@ async function getActiveIssueForComment(issueId: string) {
     select: {
       id: true,
       workspaceId: true,
+      projectId: true,
       archivedAt: true,
       project: {
         select: {

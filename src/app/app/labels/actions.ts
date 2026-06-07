@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getSafeActionErrorMessage } from "@/lib/action-error";
 import {
   addLabelToIssue,
   createLabelForWorkspace,
@@ -43,10 +44,10 @@ export async function createLabelAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Label could not be created. Check your issue access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Label could not be created. Check your issue access.",
+      ),
     };
   }
 }
@@ -70,10 +71,10 @@ export async function addLabelToIssueAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Label could not be attached. Check your issue access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Label could not be attached. Check your issue access.",
+      ),
     };
   }
 }
@@ -97,10 +98,10 @@ export async function removeLabelFromIssueAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Label could not be removed. Check your issue access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Label could not be removed. Check your issue access.",
+      ),
     };
   }
 }

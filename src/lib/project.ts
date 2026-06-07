@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { activityActions } from "@/lib/activity-events";
+import { assertMutationAllowed } from "@/lib/mutation-rate-limit";
 import { getPrisma } from "@/lib/prisma";
 import {
   createProjectKeyBase,
@@ -55,6 +57,11 @@ export async function createProjectForWorkspace({
 }) {
   const access = await requireWorkspaceAccess(workspaceId);
   const data = projectInputSchema.parse(input);
+  assertMutationAllowed({
+    key: `project:create:${access.user.id}`,
+    limit: 30,
+    windowMs: 60_000,
+  });
 
   const existing = await getPrisma().project.findFirst({
     where: {
@@ -70,14 +77,31 @@ export async function createProjectForWorkspace({
 
   const key = await getAvailableProjectKey(workspaceId, data.name);
 
-  return getPrisma().project.create({
-    data: {
-      workspaceId,
-      name: data.name,
-      key,
-      description: data.description,
-      createdById: access.user.id,
-    },
+  return getPrisma().$transaction(async (tx) => {
+    const project = await tx.project.create({
+      data: {
+        workspaceId,
+        name: data.name,
+        key,
+        description: data.description,
+        createdById: access.user.id,
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        workspaceId,
+        projectId: project.id,
+        actorId: access.user.id,
+        action: activityActions.projectCreated,
+        metadata: {
+          name: project.name,
+          key: project.key,
+        },
+      },
+    });
+
+    return project;
   });
 }
 
@@ -91,14 +115,35 @@ export async function updateProject({
   const project = await getActiveProjectForMutation(projectId);
   const data = projectInputSchema.parse(input);
 
-  await requireWorkspaceAccess(project.workspaceId);
+  const access = await requireWorkspaceAccess(project.workspaceId);
 
-  return getPrisma().project.update({
-    where: { id: projectId },
-    data: {
-      name: data.name,
-      description: data.description,
-    },
+  return getPrisma().$transaction(async (tx) => {
+    const updated = await tx.project.update({
+      where: { id: projectId },
+      data: {
+        name: data.name,
+        description: data.description,
+      },
+    });
+
+    if (
+      project.name !== data.name ||
+      project.description !== data.description
+    ) {
+      await tx.activityLog.create({
+        data: {
+          workspaceId: project.workspaceId,
+          projectId,
+          actorId: access.user.id,
+          action: activityActions.projectUpdated,
+          metadata: {
+            name: data.name,
+          },
+        },
+      });
+    }
+
+    return updated;
   });
 }
 
@@ -121,6 +166,8 @@ async function getActiveProjectForMutation(projectId: string) {
     select: {
       id: true,
       workspaceId: true,
+      name: true,
+      description: true,
       archivedAt: true,
     },
   });

@@ -1,6 +1,8 @@
 import "server-only";
 
+import { activityActions } from "@/lib/activity-events";
 import { labelInputSchema, slugifyLabelName, type LabelInput } from "@/lib/label-validation";
+import { assertMutationAllowed } from "@/lib/mutation-rate-limit";
 import { getPrisma } from "@/lib/prisma";
 import { requireWorkspaceAccess } from "@/lib/workspace";
 
@@ -22,9 +24,14 @@ export async function createLabelForWorkspace({
   workspaceId: string;
   input: LabelInput;
 }) {
-  await requireWorkspaceAccess(workspaceId);
+  const access = await requireWorkspaceAccess(workspaceId);
   const data = labelInputSchema.parse(input);
   const slug = slugifyLabelName(data.name);
+  assertMutationAllowed({
+    key: `label:create:${access.user.id}`,
+    limit: 30,
+    windowMs: 60_000,
+  });
 
   return getPrisma().label.upsert({
     where: {
@@ -54,25 +61,64 @@ export async function addLabelToIssue({
   labelId: string;
 }) {
   const { issue, label } = await getIssueAndLabelForMutation(issueId, labelId);
-  await requireWorkspaceAccess(issue.workspaceId);
+  const access = await requireWorkspaceAccess(issue.workspaceId);
 
   if (label.workspaceId !== issue.workspaceId) {
     throw new Error("Label does not belong to this issue workspace.");
   }
 
-  return getPrisma().issueLabel.upsert({
+  const existing = await getPrisma().issueLabel.findUnique({
     where: {
       issueId_labelId: {
         issueId,
         labelId,
       },
     },
-    create: {
-      issueId,
-      labelId,
-    },
-    update: {},
   });
+
+  if (existing) {
+    return existing;
+  }
+
+  try {
+    return await getPrisma().$transaction(async (tx) => {
+      const issueLabel = await tx.issueLabel.create({
+        data: {
+          issueId,
+          labelId,
+        },
+      });
+
+      await tx.activityLog.create({
+        data: {
+          workspaceId: issue.workspaceId,
+          issueId,
+          projectId: issue.projectId,
+          actorId: access.user.id,
+          action: activityActions.issueLabelAdded,
+          metadata: {
+            labelId,
+            labelName: label.name,
+          },
+        },
+      });
+
+      return issueLabel;
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return getPrisma().issueLabel.findUniqueOrThrow({
+        where: {
+          issueId_labelId: {
+            issueId,
+            labelId,
+          },
+        },
+      });
+    }
+
+    throw error;
+  }
 }
 
 export async function removeLabelFromIssue({
@@ -83,17 +129,37 @@ export async function removeLabelFromIssue({
   labelId: string;
 }) {
   const { issue, label } = await getIssueAndLabelForMutation(issueId, labelId);
-  await requireWorkspaceAccess(issue.workspaceId);
+  const access = await requireWorkspaceAccess(issue.workspaceId);
 
   if (label.workspaceId !== issue.workspaceId) {
     throw new Error("Label does not belong to this issue workspace.");
   }
 
-  return getPrisma().issueLabel.deleteMany({
-    where: {
-      issueId,
-      labelId,
-    },
+  return getPrisma().$transaction(async (tx) => {
+    const removed = await tx.issueLabel.deleteMany({
+      where: {
+        issueId,
+        labelId,
+      },
+    });
+
+    if (removed.count > 0) {
+      await tx.activityLog.create({
+        data: {
+          workspaceId: issue.workspaceId,
+          issueId,
+          projectId: issue.projectId,
+          actorId: access.user.id,
+          action: activityActions.issueLabelRemoved,
+          metadata: {
+            labelId,
+            labelName: label.name,
+          },
+        },
+      });
+    }
+
+    return removed;
   });
 }
 
@@ -104,6 +170,7 @@ async function getIssueAndLabelForMutation(issueId: string, labelId: string) {
       select: {
         id: true,
         workspaceId: true,
+        projectId: true,
         archivedAt: true,
         project: {
           select: {
@@ -117,6 +184,7 @@ async function getIssueAndLabelForMutation(issueId: string, labelId: string) {
       select: {
         id: true,
         workspaceId: true,
+        name: true,
       },
     }),
   ]);
@@ -130,4 +198,13 @@ async function getIssueAndLabelForMutation(issueId: string, labelId: string) {
   }
 
   return { issue, label };
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2002"
+  );
 }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getSafeActionErrorMessage } from "@/lib/action-error";
 import { createCommentForIssue } from "@/lib/comment";
 import { parseCommentInput } from "@/lib/comment-validation";
 import { parseIssueFilters } from "@/lib/issue-filter-validation";
@@ -46,10 +47,10 @@ export async function createCommentAction(
     }
 
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Comment could not be added. Check your issue access.",
+      error: getSafeActionErrorMessage(
+        error,
+        "Comment could not be added. Check your issue access.",
+      ),
     };
   }
 }

@@ -13,6 +13,7 @@ type VerificationResult = {
   duplicateIssueKeyGroups: number;
   duplicateProjectIssueNumberGroups: number;
   allIssuesLinkCorrectWorkspaceAndProject: boolean;
+  allAssigneesBelongToIssueWorkspace: boolean;
   issueSummaries: Array<{
     issueIndex: number;
     workspaceSlug: string;
@@ -58,12 +59,20 @@ async function main() {
         select: {
           workspaceId: true,
           projectId: true,
+          assigneeId: true,
           issueKey: true,
           priority: true,
           archivedAt: true,
           status: { select: { type: true, workspaceId: true } },
           workspace: { select: { slug: true } },
           project: { select: { key: true, workspaceId: true } },
+          assignee: {
+            select: {
+              memberships: {
+                select: { workspaceId: true },
+              },
+            },
+          },
         },
         orderBy: { createdAt: "asc" },
       }),
@@ -101,6 +110,13 @@ async function main() {
           issue.workspaceId === issue.project.workspaceId &&
           issue.workspaceId === issue.status.workspaceId,
       ),
+      allAssigneesBelongToIssueWorkspace: issues.every(
+        (issue) =>
+          !issue.assigneeId ||
+          issue.assignee?.memberships.some(
+            (membership) => membership.workspaceId === issue.workspaceId,
+          ),
+      ),
       issueSummaries: issues.map((issue, index) => ({
         issueIndex: index + 1,
         workspaceSlug: issue.workspace.slug,
@@ -118,7 +134,8 @@ async function main() {
       result.workspaceCount < 1 ||
       result.duplicateIssueKeyGroups > 0 ||
       result.duplicateProjectIssueNumberGroups > 0 ||
-      !result.allIssuesLinkCorrectWorkspaceAndProject
+      !result.allIssuesLinkCorrectWorkspaceAndProject ||
+      !result.allAssigneesBelongToIssueWorkspace
     ) {
       process.exitCode = 1;
     }

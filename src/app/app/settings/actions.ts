@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getSafeActionErrorMessage } from "@/lib/action-error";
 import { requireCurrentUser } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
+import { assertMutationAllowed } from "@/lib/mutation-rate-limit";
 import {
   deleteWorkspaceWithClient,
   type WorkspaceDeletionPrisma,
@@ -24,6 +26,11 @@ export async function deleteWorkspaceAction(
     const workspaceId = getRequiredFormString(formData, "workspaceId");
     const confirmationName = getRequiredFormString(formData, "confirmationName");
     const user = await requireCurrentUser();
+    assertMutationAllowed({
+      key: `workspace:delete:${user.id}`,
+      limit: 5,
+      windowMs: 60 * 60_000,
+    });
     const result = await deleteWorkspaceWithClient({
       prisma: getPrisma() as unknown as WorkspaceDeletionPrisma,
       userId: user.id,
@@ -41,7 +48,10 @@ export async function deleteWorkspaceAction(
     return {
       error: error instanceof WorkspaceDeleteError
         ? error.message
-        : "Workspace could not be deleted. Check your workspace access.",
+        : getSafeActionErrorMessage(
+            error,
+            "Workspace could not be deleted. Check your workspace access.",
+          ),
     };
   }
 
