@@ -6,6 +6,7 @@ import { getSafeActionErrorMessage } from "@/lib/action-error";
 import { requireCurrentUser } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
 import { assertMutationAllowed } from "@/lib/mutation-rate-limit";
+import { logMutationFailure, logServerEvent } from "@/lib/server-logger";
 import {
   deleteWorkspaceWithClient,
   type WorkspaceDeletionPrisma,
@@ -21,11 +22,18 @@ export async function deleteWorkspaceAction(
   formData: FormData,
 ): Promise<DeleteWorkspaceState> {
   let redirectTo = "/app";
+  let workspaceId: string | undefined;
+  let userId: string | undefined;
 
   try {
-    const workspaceId = getRequiredFormString(formData, "workspaceId");
+    workspaceId = getRequiredFormString(formData, "workspaceId");
     const confirmationName = getRequiredFormString(formData, "confirmationName");
     const user = await requireCurrentUser();
+    userId = user.id;
+    logServerEvent("warn", "workspace.delete.attempted", {
+      workspaceId,
+      userId,
+    });
     assertMutationAllowed({
       key: `workspace:delete:${user.id}`,
       limit: 5,
@@ -39,12 +47,20 @@ export async function deleteWorkspaceAction(
     });
 
     redirectTo = result.redirectTo;
+    logServerEvent("warn", "workspace.delete.succeeded", {
+      workspaceId,
+      userId,
+    });
     revalidatePath("/app");
     revalidatePath("/app/projects");
     revalidatePath("/app/issues");
     revalidatePath("/app/views");
     revalidatePath("/app/settings");
   } catch (error) {
+    logMutationFailure("workspace.delete", error, {
+      workspaceId,
+      userId,
+    });
     return {
       error: error instanceof WorkspaceDeleteError
         ? error.message

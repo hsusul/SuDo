@@ -5,6 +5,7 @@ import { cache } from "react";
 import type { User } from "@/generated/prisma/client";
 import { syncCurrentUser } from "@/lib/auth-sync";
 import { getPrisma } from "@/lib/prisma";
+import { logAuthorizationFailure } from "@/lib/server-logger";
 
 export function isClerkConfigured() {
   return Boolean(
@@ -100,6 +101,9 @@ export async function requireCurrentUser() {
     return result.user;
   }
 
+  logAuthorizationFailure("auth.current_user.unavailable", {
+    status: result.status,
+  });
   throw new CurrentUserError(result.status, getCurrentUserErrorMessage(result.status));
 }
 

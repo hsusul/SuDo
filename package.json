@@ -12,12 +12,14 @@
     "test": "vitest run --passWithNoTests",
     "check": "./scripts/check.sh",
     "test:e2e": "playwright test",
+    "test:e2e:auth": "PLAYWRIGHT_AUTHENTICATED=1 playwright test --project=authenticated-chromium",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "qa:screenshots": "playwright test --grep @screenshots",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:status": "prisma migrate status",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:verify-workspace": "tsx scripts/verify-workspace-foundation.ts",
@@ -50,6 +52,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.0.35",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

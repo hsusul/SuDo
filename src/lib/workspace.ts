@@ -4,6 +4,7 @@ import { cache } from "react";
 import { getDefaultIssueStatusData } from "@/lib/default-issue-statuses";
 import { requireCurrentUser } from "@/lib/auth";
 import { getPrisma } from "@/lib/prisma";
+import { logAuthorizationFailure } from "@/lib/server-logger";
 import {
   resolveWorkspaceAccess,
   type WorkspaceAccess,
@@ -67,6 +68,12 @@ export async function requireWorkspaceRole(
   const access = await requireWorkspaceAccess(workspaceId);
 
   if (!allowedRoles.includes(access.membership.role)) {
+    logAuthorizationFailure("authorization.workspace_role.denied", {
+      workspaceId,
+      userId: access.user.id,
+      role: access.membership.role,
+      allowedRoles,
+    });
     throw new WorkspacePermissionError();
   }
 

@@ -12,7 +12,10 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("SuDo app route failed", error);
+    console.error("SuDo app route failed", {
+      name: error.name,
+      digest: error.digest,
+    });
   }, [error]);
 
   return (

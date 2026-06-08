@@ -7,6 +7,7 @@ import { createCommentForIssue } from "@/lib/comment";
 import { parseCommentInput } from "@/lib/comment-validation";
 import { parseIssueFilters } from "@/lib/issue-filter-validation";
 import { buildIssueListPath } from "@/lib/issue-url";
+import { logMutationFailure } from "@/lib/server-logger";
 
 export type CommentActionState = {
   error?: string;
@@ -46,6 +47,7 @@ export async function createCommentAction(
       throw error;
     }
 
+    logMutationFailure("comment.create", error, { issueId });
     return {
       error: getSafeActionErrorMessage(
         error,

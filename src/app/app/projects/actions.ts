@@ -9,6 +9,7 @@ import {
   updateProject,
 } from "@/lib/project";
 import { parseProjectInput } from "@/lib/project-validation";
+import { logMutationFailure } from "@/lib/server-logger";
 
 export type ProjectActionState = {
   error?: string;
@@ -38,6 +39,7 @@ export async function createProjectAction(
       throw error;
     }
 
+    logMutationFailure("project.create", error, { workspaceId });
     return {
       error: getSafeActionErrorMessage(
         error,
@@ -71,6 +73,7 @@ export async function updateProjectAction(
       throw error;
     }
 
+    logMutationFailure("project.update", error, { projectId });
     return {
       error: getSafeActionErrorMessage(
         error,
@@ -96,6 +99,7 @@ export async function archiveProjectAction(
       throw error;
     }
 
+    logMutationFailure("project.archive", error, { projectId });
     return {
       error: getSafeActionErrorMessage(
         error,

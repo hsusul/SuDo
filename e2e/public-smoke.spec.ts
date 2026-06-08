@@ -15,9 +15,13 @@ test.describe("public visual smoke", () => {
       await page.goto("/");
 
       await expect(
-        page.getByRole("heading", { name: "A focused command deck for shipping work." }).first(),
+        page.getByRole("heading", {
+          name: "Issue tracking for small teams that ship.",
+        }),
       ).toBeVisible();
-      await expect(page.getByRole("link", { name: "Start with SuDo" })).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Explore the demo workspace" }),
+      ).toBeVisible();
       await expect(
         page.getByText("SuDo turns workspace chaos into a clean issue pipeline."),
       ).toBeVisible();
@@ -32,6 +36,20 @@ test.describe("public visual smoke", () => {
         fullPage: false,
       });
     }
+  });
+
+  test("public routes return production security headers", async ({ request }) => {
+    const response = await request.get("/");
+
+    expect(response.ok()).toBe(true);
+    expect(response.headers()["x-frame-options"]).toBe("DENY");
+    expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers()["referrer-policy"]).toBe(
+      "strict-origin-when-cross-origin",
+    );
+    expect(response.headers()["content-security-policy-report-only"]).toContain(
+      "frame-ancestors 'none'",
+    );
   });
 
   test("auth routes render without Clerk layout overlap", async ({ page }) => {

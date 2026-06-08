@@ -10,6 +10,7 @@ import {
   getInvitationPreview,
   WorkspaceCollaborationError,
 } from "@/lib/workspace-collaboration";
+import { logServerEvent } from "@/lib/server-logger";
 import { WorkspacePermissionError } from "@/lib/workspace-permissions";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,7 @@ export default async function WorkspaceInvitationPage({
   try {
     invitation = await getInvitationPreview(token);
   } catch (error) {
+    logServerEvent("warn", "workspace.invitation.preview_failed", undefined, error);
     invitationError =
       error instanceof WorkspaceCollaborationError ||
       error instanceof WorkspacePermissionError

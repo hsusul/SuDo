@@ -108,6 +108,7 @@ describe("deleteWorkspaceWithClient", () => {
 
     expect(operations).toEqual([
       "workspaceInvitation.deleteMany",
+      "savedView.deleteMany",
       "issueLabel.deleteMany",
       "activityLog.deleteMany",
       "comment.deleteMany",
@@ -183,6 +184,7 @@ function createTransactionMock(operations: string[]) {
 
   return {
     workspaceInvitation: deleteManyModel("workspaceInvitation"),
+    savedView: deleteManyModel("savedView"),
     issueLabel: deleteManyModel("issueLabel"),
     activityLog: deleteManyModel("activityLog"),
     comment: deleteManyModel("comment"),

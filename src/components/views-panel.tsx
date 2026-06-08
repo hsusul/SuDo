@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { CountBadge } from "@/components/ui/count-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import {
+  SavedViewsPanel,
+  type SavedViewListItem,
+} from "@/components/saved-views-panel";
 import { cn } from "@/lib/utils";
 
 export type ViewsProjectItem = {
@@ -20,11 +24,15 @@ export function ViewsPanel({
   projects,
   selectedProjectKey,
   summary,
+  workspaceId,
+  savedViews,
 }: {
+  workspaceId: string;
   workspaceSlug: string;
   projects: ViewsProjectItem[];
   selectedProjectKey: string | null;
   summary: ProjectViewSummary | null;
+  savedViews: SavedViewListItem[];
 }) {
   const selectedProject =
     projects.find((project) => project.key === selectedProjectKey) ?? projects[0] ?? null;
@@ -33,8 +41,8 @@ export function ViewsPanel({
     <div className="grid gap-6">
       <PageHeader
         eyebrow="Views"
-        title="Issue shortcuts"
-        description="Jump into useful slices of the existing issue pipeline without introducing a separate saved-view system."
+        title="Workspace views"
+        description="Open shared saved filters or jump into generated slices of the current issue pipeline."
         actions={
           selectedProject ? (
             <Button asChild variant="outline">
@@ -50,6 +58,12 @@ export function ViewsPanel({
             </Button>
           ) : null
         }
+      />
+
+      <SavedViewsPanel
+        workspaceId={workspaceId}
+        workspaceSlug={workspaceSlug}
+        savedViews={savedViews}
       />
 
       {projects.length === 0 || !selectedProject || !summary ? (

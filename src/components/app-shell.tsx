@@ -11,6 +11,7 @@ import type { UserWorkspace } from "@/lib/workspace";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { CountBadge } from "@/components/ui/count-badge";
+import { CommandMenu } from "@/components/command-menu";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export function AppShell({
   currentWorkspace,
   workspaces = [],
   activeView,
+  currentProjectKey,
   navigationCounts,
 }: {
   children: React.ReactNode;
@@ -34,6 +36,7 @@ export function AppShell({
   currentWorkspace?: UserWorkspace["workspace"] | null;
   workspaces?: UserWorkspace[];
   activeView?: "projects" | "issues" | "views" | "settings";
+  currentProjectKey?: string | null;
   navigationCounts?: {
     activeProjectCount: number;
     activeIssueCount: number;
@@ -50,7 +53,10 @@ export function AppShell({
   }));
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main
+      data-testid="app-shell"
+      className="min-h-screen bg-background text-foreground"
+    >
       <div className="grid min-h-screen lg:grid-cols-[16.5rem_minmax(0,1fr)]">
         <aside className="hidden min-h-screen border-r border-border bg-[#0c0d0e] lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
           <Link
@@ -161,6 +167,22 @@ export function AppShell({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {currentWorkspace ? (
+                <CommandMenu
+                  activeView={activeView}
+                  currentWorkspace={{
+                    id: currentWorkspace.id,
+                    name: currentWorkspace.name,
+                    slug: currentWorkspace.slug,
+                  }}
+                  currentProjectKey={currentProjectKey}
+                  workspaces={workspaces.map((membership) => ({
+                    id: membership.workspace.id,
+                    name: membership.workspace.name,
+                    slug: membership.workspace.slug,
+                  }))}
+                />
+              ) : null}
               {!isAuthConfigured ? (
                 <span className="hidden items-center gap-1.5 rounded-md border border-[#eb5757]/30 bg-[#eb5757]/8 px-2 py-1 text-xs text-[#ff8585] sm:inline-flex">
                   <AlertCircle className="size-3.5" aria-hidden="true" />

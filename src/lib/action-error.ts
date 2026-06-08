@@ -1,5 +1,18 @@
 import { MutationRateLimitError } from "@/lib/mutation-rate-limit";
 
+const safeActionErrorNames = new Set([
+  "AssigneeError",
+  "CurrentUserError",
+  "InvitationError",
+  "LabelError",
+  "ProjectError",
+  "SavedViewError",
+  "WorkspaceAccessError",
+  "WorkspaceCollaborationError",
+  "WorkspaceDeleteError",
+  "WorkspacePermissionError",
+]);
+
 export function getSafeActionErrorMessage(error: unknown, fallback: string) {
   if (error instanceof MutationRateLimitError) {
     return error.message;
@@ -9,7 +22,9 @@ export function getSafeActionErrorMessage(error: unknown, fallback: string) {
     return fallback;
   }
 
-  return error instanceof Error ? error.message : fallback;
+  return error instanceof Error && safeActionErrorNames.has(error.name)
+    ? error.message
+    : fallback;
 }
 
 function isPrismaError(error: unknown): error is { code: string } {

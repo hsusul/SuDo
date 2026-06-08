@@ -2,14 +2,16 @@ import Link from "next/link";
 import {
   ArrowRight,
   CheckCircle2,
+  CodeXml,
   Command,
   FolderKanban,
   Gauge,
   GitPullRequestArrow,
-  MessageSquareText,
+  History,
   ShieldCheck,
   SlidersHorizontal,
   Tags,
+  Users,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { ProductPreview } from "@/components/product-preview";
@@ -20,42 +22,46 @@ const features = [
   {
     icon: Command,
     eyebrow: "01 / Workspaces",
-    title: "Keep every operating context separate.",
-    body: "Move between classes, teams, launches, and client work without mixing projects or issue history.",
+    title: "Keep teams and workstreams isolated.",
+    body: "Workspace-scoped authorization keeps projects, issues, members, views, and activity in the right tenant.",
   },
   {
     icon: FolderKanban,
     eyebrow: "02 / Projects",
-    title: "Turn broad goals into visible workstreams.",
-    body: "Group related issues, inspect active load, and archive finished tracks without losing the record.",
+    title: "Turn goals into focused project pipelines.",
+    body: "Group related issues, inspect active work, and archive finished tracks without losing their history.",
   },
   {
     icon: CheckCircle2,
     eyebrow: "03 / Issues",
-    title: "Scan the pipeline without opening every ticket.",
-    body: "Compact rows keep status, priority, labels, project context, and issue identifiers in view.",
+    title: "Scan, assign, and update without losing context.",
+    body: "Compact rows expose status, priority, labels, assignees, issue IDs, and the latest project state.",
   },
   {
     icon: SlidersHorizontal,
-    eyebrow: "04 / Filters",
-    title: "Get to the exact slice of work fast.",
-    body: "Search and filter by status, priority, label, or project using the same focused issue surface.",
+    eyebrow: "04 / Views",
+    title: "Save the exact slice of work you need.",
+    body: "Search and filter by status, priority, or label, then persist the result as a workspace view.",
   },
   {
-    icon: MessageSquareText,
-    eyebrow: "05 / Comments",
-    title: "Keep decisions attached to the work.",
-    body: "Use the issue drawer to update details and leave concise project context where it belongs.",
+    icon: Users,
+    eyebrow: "05 / Collaboration",
+    title: "Share ownership without blurring permissions.",
+    body: "Invite members, assign issues, discuss decisions, and keep a compact activity history with owner/admin/member RBAC.",
   },
   {
     icon: ShieldCheck,
     eyebrow: "06 / Delivery",
-    title: "Built on a production-ready foundation.",
-    body: "Clerk authentication, Prisma, Postgres, safe workspace deletion, and a Vercel deployment path are part of the product.",
+    title: "Built as a deployed product, not a static mockup.",
+    body: "Clerk auth, Prisma, Neon Postgres, safe deletion, security headers, structured logs, CI, and browser tests ship with the app.",
   },
 ];
 
+const repositoryUrl = "https://github.com/hsusul/SuDo";
+
 export default function Home() {
+  const demoHref = getDemoHref();
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div className="sudo-spotlight" aria-hidden="true" />
@@ -71,6 +77,14 @@ export default function Home() {
             <Link href="#product" className="transition hover:text-foreground">Product</Link>
             <Link href="#workflow" className="transition hover:text-foreground">Workflow</Link>
             <Link href="#foundation" className="transition hover:text-foreground">Foundation</Link>
+            <Link
+              href={repositoryUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-foreground"
+            >
+              GitHub
+            </Link>
           </nav>
           <div className="flex items-center gap-2">
             <Button asChild variant="ghost" className="hidden sm:inline-flex">
@@ -89,36 +103,39 @@ export default function Home() {
       <section className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col items-center px-5 pt-20 text-center sm:px-8 sm:pt-28">
         <div className="inline-flex items-center gap-2 rounded-full border border-[#323334] bg-[#0f1011]/85 px-3 py-1.5 font-mono text-[0.68rem] text-[#8a8f98] shadow-[0_10px_40px_rgb(0_0_0_/_25%)]">
           <span className="size-1.5 rounded-full bg-[#27a644] shadow-[0_0_12px_#27a644]" />
-          DEMO WORKSPACE READY AFTER SIGN-UP
+          SEEDED DEMO AVAILABLE AFTER SIGN-UP
         </div>
         <p className="mt-10 font-mono text-xs uppercase tracking-[0.12em] text-[#8f99ff]">
-          Small-team issue operations
+          Multi-tenant issue tracking for small teams
         </p>
         <h1 className="mt-5 max-w-5xl text-balance text-5xl font-semibold leading-[1.02] tracking-[-0.04em] sm:text-7xl lg:text-[5.5rem]">
-          A focused command deck for shipping work.
+          Issue tracking for small teams that ship.
         </h1>
         <p className="mt-7 max-w-2xl text-balance text-base leading-7 text-[#8a8f98] sm:text-lg">
-          Track issues, projects, comments, labels, filters, and workspace settings
-          without the clutter.
+          Plan projects, assign issues, save filtered views, and keep every comment,
+          label, and decision tied to the work.
         </p>
         <div className="mt-9 flex flex-col gap-3 sm:flex-row">
           <Button asChild size="lg">
-            <Link href="/sign-up" prefetch={false}>
-              Start with SuDo
+            <Link href={demoHref} prefetch={false}>
+              Explore the demo workspace
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline">
-            <Link href="#product">Inspect the command deck</Link>
+            <Link href={repositoryUrl} target="_blank" rel="noreferrer">
+              <CodeXml className="size-4" aria-hidden="true" />
+              View source
+            </Link>
           </Button>
         </div>
 
         <div className="mt-16 grid w-full max-w-4xl grid-cols-2 border-y border-[#23252a] sm:grid-cols-4">
           {[
-            ["Workspace scoped", "Every read and write"],
-            ["Issue focused", "Dense, fast pipelines"],
-            ["Context attached", "Labels and comments"],
-            ["Deployable", "Clerk, Prisma, Neon"],
+            ["Multi-tenant", "Workspace-scoped RBAC"],
+            ["Collaborative", "Assignees and history"],
+            ["Keyboard-first", "Cmd+K and saved views"],
+            ["Production-backed", "Clerk, Prisma, Neon"],
           ].map(([title, detail], index) => (
             <div
               key={title}
@@ -136,11 +153,11 @@ export default function Home() {
           <div className="mx-auto max-w-3xl text-center">
             <p className="sudo-kicker">Product preview</p>
             <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-5xl">
-              A focused command deck for shipping work.
+              See the issue pipeline before you sign in.
             </h2>
             <p className="mt-5 text-base leading-7 text-[#8a8f98]">
-              Track issues, projects, comments, labels, filters, and workspace settings
-              without the clutter.
+              The seeded demo mirrors the real product: projects, issues, labels,
+              comments, filters, member roles, and activity history.
             </p>
           </div>
           <MacbookScroll title="SuDo turns workspace chaos into a clean issue pipeline.">
@@ -206,6 +223,10 @@ export default function Home() {
               Clerk, Prisma, Postgres, workspace authorization, seeded demo data, and
               safe destructive flows are already part of the application.
             </p>
+            <div className="mt-8 flex items-center gap-3 border-t border-[#23252a] pt-6 text-xs text-[#8a8f98]">
+              <History className="size-4 text-[#02b8cc]" aria-hidden="true" />
+              <span>113 unit tests plus public and opt-in authenticated Playwright</span>
+            </div>
           </div>
         </div>
       </section>
@@ -215,14 +236,15 @@ export default function Home() {
           <div className="sudo-grid-bg absolute inset-0 opacity-30" aria-hidden="true" />
           <Tags className="relative mx-auto size-5 text-[#8f99ff]" aria-hidden="true" />
           <h2 className="relative mx-auto mt-6 max-w-2xl text-3xl font-semibold tracking-[-0.03em] sm:text-5xl">
-            Put the next issue in motion.
+            Try the real workflow with seeded data.
           </h2>
           <p className="relative mx-auto mt-5 max-w-xl text-sm leading-7 text-[#8a8f98]">
-            Start with the seeded demo workspace, inspect the workflow, and make it yours.
+            Sign up, choose the demo workspace, and inspect a complete issue pipeline
+            without affecting another user&apos;s data.
           </p>
           <Button asChild size="lg" className="relative mt-8">
-            <Link href="/sign-up" prefetch={false}>
-              Create your workspace
+            <Link href={demoHref} prefetch={false}>
+              Sign up and create the demo
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </Button>
@@ -235,9 +257,30 @@ export default function Home() {
             <BrandMark className="size-7" iconClassName="size-3.5" />
             <span>SuDo</span>
           </div>
-          <span className="font-mono">PROJECTS / ISSUES / FLOW</span>
+          <Link
+            href={repositoryUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono transition hover:text-[#d0d6e0]"
+          >
+            SOURCE / ARCHITECTURE / TESTS
+          </Link>
         </div>
       </footer>
     </main>
   );
+}
+
+function getDemoHref() {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (!appUrl || appUrl.includes("localhost")) {
+    return "/sign-up";
+  }
+
+  try {
+    return new URL("/sign-up", appUrl).toString();
+  } catch {
+    return "/sign-up";
+  }
 }

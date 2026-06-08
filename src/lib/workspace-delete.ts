@@ -50,6 +50,7 @@ type DeleteManyModel = {
 
 type WorkspaceDeletionTransaction = {
   workspaceInvitation: DeleteManyModel;
+  savedView: DeleteManyModel;
   issueLabel: DeleteManyModel;
   activityLog: DeleteManyModel;
   comment: DeleteManyModel;
@@ -148,6 +149,7 @@ export async function deleteWorkspaceWithClient({
 
   await prisma.$transaction(async (tx) => {
     await tx.workspaceInvitation.deleteMany({ where: { workspaceId } });
+    await tx.savedView.deleteMany({ where: { workspaceId } });
     await tx.issueLabel.deleteMany({
       where: {
         issue: {

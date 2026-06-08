@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getSafeActionErrorMessage } from "@/lib/action-error";
+import { logMutationFailure } from "@/lib/server-logger";
 import {
   acceptWorkspaceInvitation,
   WorkspaceCollaborationError,
@@ -32,6 +33,7 @@ export async function acceptWorkspaceInvitationAction(
       throw error;
     }
 
+    logMutationFailure("workspace.invitation.accept", error);
     return {
       error:
         error instanceof WorkspaceCollaborationError ||

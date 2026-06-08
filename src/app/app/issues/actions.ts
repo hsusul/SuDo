@@ -11,6 +11,7 @@ import {
 import { parseIssueFilters } from "@/lib/issue-filter-validation";
 import { buildIssueListPath } from "@/lib/issue-url";
 import { parseIssueInput } from "@/lib/issue-validation";
+import { logMutationFailure } from "@/lib/server-logger";
 
 export type IssueActionState = {
   error?: string;
@@ -44,6 +45,7 @@ export async function createIssueAction(
       throw error;
     }
 
+    logMutationFailure("issue.create", error, { projectId });
     return {
       error: getSafeActionErrorMessage(
         error,
@@ -82,6 +84,7 @@ export async function updateIssueAction(
       throw error;
     }
 
+    logMutationFailure("issue.update", error, { issueId });
     return {
       error: getSafeActionErrorMessage(
         error,
@@ -108,6 +111,7 @@ export async function archiveIssueAction(
       throw error;
     }
 
+    logMutationFailure("issue.archive", error, { issueId });
     return {
       error: getSafeActionErrorMessage(
         error,

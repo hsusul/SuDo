@@ -1,12 +1,19 @@
 "use client";
 
-import { useRef, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Archive,
+  Bookmark,
   Check,
   CircleDot,
   Clock3,
@@ -34,6 +41,10 @@ import {
   updateIssueAction,
   type IssueActionState,
 } from "@/app/app/issues/actions";
+import {
+  createSavedViewAction,
+  type SavedViewActionState,
+} from "@/app/app/views/actions";
 import { ActionDialog } from "@/components/action-dialog";
 import { AppPanel } from "@/components/ui/app-panel";
 import { Button } from "@/components/ui/button";
@@ -64,6 +75,7 @@ import {
 import { buildIssueListPath } from "@/lib/issue-url";
 import { labelColorValues } from "@/lib/label-validation";
 import { cn } from "@/lib/utils";
+import { commandEvents } from "@/lib/command-events";
 
 export type IssueListItem = {
   id: string;
@@ -133,6 +145,7 @@ export type IssueActivityItem = {
 const initialState: IssueActionState = {};
 const initialCommentState: CommentActionState = {};
 const initialLabelState: LabelActionState = {};
+const initialSavedViewState: SavedViewActionState = {};
 
 export function IssuePanel({
   workspaceSlug,
@@ -144,6 +157,7 @@ export function IssuePanel({
   workspaceMembers,
   filters,
   selectedIssue,
+  initialCommand,
 }: {
   workspaceSlug: string;
   workspaceId: string;
@@ -154,10 +168,63 @@ export function IssuePanel({
   workspaceMembers: WorkspaceIssueMember[];
   filters: IssueFilters;
   selectedIssue?: IssueDetailItem | null;
+  initialCommand?: string;
 }) {
-  const [isCreating, setIsCreating] = useState(false);
+  const router = useRouter();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isCreating, setIsCreating] = useState(
+    initialCommand === "create-issue",
+  );
+  const [isSavingView, setIsSavingView] = useState(
+    initialCommand === "save-view",
+  );
   const [editingIssue, setEditingIssue] = useState<IssueListItem | null>(null);
   const hasActiveFilters = hasIssueFilters(filters);
+
+  useEffect(() => {
+    function openCreateIssue() {
+      setIsCreating(true);
+    }
+
+    function openSaveView() {
+      setIsSavingView(true);
+    }
+
+    function focusIssueSearch() {
+      searchInputRef.current?.focus();
+    }
+
+    window.addEventListener(commandEvents.createIssue, openCreateIssue);
+    window.addEventListener(commandEvents.saveView, openSaveView);
+    window.addEventListener(commandEvents.searchIssues, focusIssueSearch);
+
+    return () => {
+      window.removeEventListener(commandEvents.createIssue, openCreateIssue);
+      window.removeEventListener(commandEvents.saveView, openSaveView);
+      window.removeEventListener(commandEvents.searchIssues, focusIssueSearch);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!initialCommand) {
+      return;
+    }
+
+    if (initialCommand === "search-issues") {
+      requestAnimationFrame(() => searchInputRef.current?.focus());
+    } else if (
+      initialCommand !== "create-issue" &&
+      initialCommand !== "save-view"
+    ) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    params.delete("command");
+    router.replace(`${window.location.pathname}?${params.toString()}`, {
+      scroll: false,
+    });
+  }, [initialCommand, router]);
 
   if (!project) {
     return (
@@ -242,6 +309,8 @@ export function IssuePanel({
           projectKey={project.key}
           filters={filters}
           workspaceLabels={workspaceLabels}
+          onSaveView={() => setIsSavingView(true)}
+          searchInputRef={searchInputRef}
         />
 
         {issues.length === 0 ? (
@@ -299,6 +368,20 @@ export function IssuePanel({
       </AppPanel>
 
       <ActionDialog
+        title="Save current view"
+        description="Create a workspace-shared shortcut from this project and filter set."
+        open={isSavingView}
+        onOpenChange={setIsSavingView}
+      >
+        <CreateSavedViewForm
+          workspaceId={workspaceId}
+          workspaceSlug={workspaceSlug}
+          project={project}
+          filters={filters}
+        />
+      </ActionDialog>
+
+      <ActionDialog
         title="New issue"
         description={`Create an issue in ${project.name}.`}
         open={isCreating}
@@ -352,11 +435,15 @@ function IssueFilterBar({
   projectKey,
   filters,
   workspaceLabels,
+  onSaveView,
+  searchInputRef,
 }: {
   workspaceSlug: string;
   projectKey: string;
   filters: IssueFilters;
   workspaceLabels: IssueLabelItem[];
+  onSaveView: () => void;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const selectedLabel = workspaceLabels.find((label) => label.id === filters.labelId);
   const activeFilters = [
@@ -372,7 +459,7 @@ function IssueFilterBar({
       <form
         action="/app/issues"
         method="get"
-        className="grid gap-2 lg:grid-cols-[minmax(12rem,1fr)_10rem_10rem_10rem_auto_auto] lg:items-end"
+        className="grid gap-2 lg:grid-cols-[minmax(12rem,1fr)_10rem_10rem_10rem_auto] lg:items-end"
       >
         <input type="hidden" name="workspace" value={workspaceSlug} />
         <input type="hidden" name="project" value={projectKey} />
@@ -386,6 +473,7 @@ function IssueFilterBar({
               aria-hidden="true"
             />
             <input
+              ref={searchInputRef}
               id="issue-filter-query"
               name="q"
               type="search"
@@ -435,14 +523,22 @@ function IssueFilterBar({
             })),
           ]}
         />
-        <Button type="submit" variant="outline">
-          Apply
-        </Button>
-        {hasActiveFilters ? (
-          <Button asChild variant="ghost">
-            <Link href={buildIssueListPath({ workspaceSlug, projectKey })}>Clear</Link>
+        <div className="flex items-center gap-1">
+          <Button type="submit" variant="outline">
+            Apply
           </Button>
-        ) : null}
+          <Button type="button" variant="ghost" onClick={onSaveView}>
+            <Bookmark className="size-3.5" aria-hidden="true" />
+            Save view
+          </Button>
+          {hasActiveFilters ? (
+            <Button asChild variant="ghost">
+              <Link href={buildIssueListPath({ workspaceSlug, projectKey })}>
+                Clear
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </form>
       {activeFilters.length > 0 ? (
         <div className="flex flex-wrap gap-2">
@@ -455,6 +551,94 @@ function IssueFilterBar({
       ) : null}
     </div>
   );
+}
+
+function CreateSavedViewForm({
+  workspaceId,
+  workspaceSlug,
+  project,
+  filters,
+}: {
+  workspaceId: string;
+  workspaceSlug: string;
+  project: SelectedIssueProject;
+  filters: IssueFilters;
+}) {
+  const [state, formAction] = useActionState(
+    createSavedViewAction,
+    initialSavedViewState,
+  );
+
+  return (
+    <form action={formAction} className="grid gap-4">
+      <input type="hidden" name="workspaceId" value={workspaceId} />
+      <input type="hidden" name="workspaceSlug" value={workspaceSlug} />
+      <input type="hidden" name="projectId" value={project.id} />
+      <input type="hidden" name="projectKey" value={project.key} />
+      <input type="hidden" name="status" value={filters.status ?? ""} />
+      <input type="hidden" name="priority" value={filters.priority ?? ""} />
+      <input type="hidden" name="labelId" value={filters.labelId ?? ""} />
+      <input type="hidden" name="query" value={filters.query ?? ""} />
+      <div className="grid gap-2">
+        <label
+          htmlFor="saved-view-name"
+          className="text-xs font-medium text-muted-foreground"
+        >
+          View name
+        </label>
+        <input
+          id="saved-view-name"
+          name="name"
+          required
+          minLength={2}
+          maxLength={80}
+          placeholder="Launch blockers"
+          className="sudo-input"
+        />
+      </div>
+      <div className="rounded-md border border-[#323334] bg-[#0c0d0e] px-3 py-2.5">
+        <p className="font-mono text-[0.6rem] uppercase text-[#62666d]">
+          Project
+        </p>
+        <p className="mt-1 text-sm text-[#d0d6e0]">
+          {project.name} ({project.key})
+        </p>
+        <p className="mt-2 text-xs text-[#8a8f98]">
+          {describeSavedViewFilters(filters)}
+        </p>
+      </div>
+      {state.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      ) : null}
+      <SavedViewSubmitButton />
+    </form>
+  );
+}
+
+function SavedViewSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" disabled={pending}>
+      <Bookmark className="size-4" aria-hidden="true" />
+      {pending ? "Saving..." : "Save current view"}
+    </Button>
+  );
+}
+
+function describeSavedViewFilters(filters: IssueFilters) {
+  const parts = [
+    filters.status ? `Status ${formatIssueStatus(filters.status)}` : null,
+    filters.priority
+      ? `Priority ${formatIssuePriority(filters.priority)}`
+      : null,
+    filters.labelId ? "Label filter" : null,
+    filters.query ? `Search "${filters.query}"` : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" · ") : "All active issues";
 }
 
 function FilterSelect({
@@ -587,6 +771,8 @@ function IssueRow({
 
   return (
     <article
+      data-testid="issue-row"
+      data-issue-key={issue.issueKey}
       className={cn(
         "group relative px-5 py-3 transition duration-150 hover:bg-[#141517]",
         selected &&
@@ -1108,7 +1294,10 @@ function IssueActivitySection({
   activity: IssueActivityItem[];
 }) {
   return (
-    <section className="grid gap-4 border-t border-border/50 pt-5">
+    <section
+      data-testid="issue-activity"
+      className="grid gap-4 border-t border-border/50 pt-5"
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="sudo-kicker">Activity</p>
@@ -1172,7 +1361,10 @@ function IssueCommentsSection({
   filters: IssueFilters;
 }) {
   return (
-    <section className="grid gap-4 border-t border-border/50 pt-5">
+    <section
+      data-testid="issue-comments"
+      className="grid gap-4 border-t border-border/50 pt-5"
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="sudo-kicker">Comments</p>

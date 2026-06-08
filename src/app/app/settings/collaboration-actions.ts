@@ -4,6 +4,7 @@ import type { WorkspaceRole } from "@/generated/prisma/client";
 import { revalidatePath } from "next/cache";
 import { getSafeActionErrorMessage } from "@/lib/action-error";
 import { parseWorkspaceInvitationInput } from "@/lib/invitation-validation";
+import { logMutationFailure } from "@/lib/server-logger";
 import {
   createWorkspaceInvitation,
   removeWorkspaceMember,
@@ -46,6 +47,7 @@ export async function createWorkspaceInvitationAction(
       invitePath: result.invitePath,
     };
   } catch (error) {
+    logMutationFailure("workspace.invitation.create", error);
     return {
       error: getCollaborationError(
         error,
@@ -67,6 +69,7 @@ export async function revokeWorkspaceInvitationAction(
     revalidateSettings();
     return {};
   } catch (error) {
+    logMutationFailure("workspace.invitation.revoke", error);
     return {
       error: getCollaborationError(
         error,
@@ -89,6 +92,7 @@ export async function updateWorkspaceMemberRoleAction(
     revalidateSettings();
     return {};
   } catch (error) {
+    logMutationFailure("workspace.member.role_update", error);
     return {
       error: getCollaborationError(
         error,
@@ -110,6 +114,7 @@ export async function removeWorkspaceMemberAction(
     revalidateSettings();
     return {};
   } catch (error) {
+    logMutationFailure("workspace.member.remove", error);
     return {
       error: getCollaborationError(
         error,

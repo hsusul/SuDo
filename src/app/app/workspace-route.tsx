@@ -18,6 +18,8 @@ import { parseIssueFilters, type IssueFilters } from "@/lib/issue-filter-validat
 import { getIssueForDetail, getProjectIssues } from "@/lib/issue";
 import { getWorkspaceLabels } from "@/lib/label";
 import { getWorkspaceProjects } from "@/lib/project";
+import { canManageSavedView } from "@/lib/saved-view-permissions";
+import { getWorkspaceSavedViews } from "@/lib/saved-view";
 import { getProjectViewSummary, type ProjectViewSummary } from "@/lib/view";
 import { getUserWorkspaces, type UserWorkspace } from "@/lib/workspace";
 import {
@@ -37,6 +39,7 @@ export type WorkspaceRouteProps = {
     priority?: string;
     label?: string;
     q?: string;
+    command?: string;
   }>;
 };
 
@@ -94,13 +97,21 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
     getWorkspaceProjects(currentWorkspace.workspace.id),
     getWorkspaceNavigationCounts(currentWorkspace.workspace.id),
   ]);
-  const [workspaceLabels, workspaceMembers, workspaceInvitations] = await Promise.all([
+  const [
+    workspaceLabels,
+    workspaceMembers,
+    workspaceInvitations,
+    workspaceSavedViews,
+  ] = await Promise.all([
     view === "issues" ? getWorkspaceLabels(currentWorkspace.workspace.id) : [],
     view === "issues" || view === "settings"
       ? getWorkspaceMembers(currentWorkspace.workspace.id)
       : [],
     view === "settings"
       ? getWorkspaceInvitations(currentWorkspace.workspace.id)
+      : [],
+    view === "views"
+      ? getWorkspaceSavedViews(currentWorkspace.workspace.id)
       : [],
   ]);
   const requestedIssue =
@@ -128,6 +139,7 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
       workspaces={workspaces}
       currentWorkspace={currentWorkspace.workspace}
       activeView={view}
+      currentProjectKey={selectedProject?.key ?? null}
       navigationCounts={navigationCounts}
     >
       <WorkspaceHomeState
@@ -205,6 +217,19 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
           },
         }))}
         currentMembershipRole={currentWorkspace.role}
+        workspaceSavedViews={workspaceSavedViews.map((savedView) => ({
+          id: savedView.id,
+          name: savedView.name,
+          filters: savedView.filters,
+          updatedAt: savedView.updatedAt.toISOString(),
+          canManage: canManageSavedView({
+            role: currentWorkspace.role,
+            userId: userResult.user.id,
+            creatorId: savedView.creatorId,
+          }),
+          project: savedView.project,
+          creator: savedView.creator,
+        }))}
         issueFilters={issueFilters}
         selectedIssue={
           selectedIssue
@@ -265,6 +290,7 @@ export async function WorkspaceRoute({ view, searchParams }: WorkspaceRouteProps
             : null
         }
         viewSummary={viewSummary}
+        initialCommand={params?.command}
       />
     </AppShell>
   );
@@ -326,10 +352,12 @@ function WorkspaceHomeState({
   workspaceLabels,
   workspaceMembers,
   workspaceInvitations,
+  workspaceSavedViews,
   currentMembershipRole,
   issueFilters,
   selectedIssue,
   viewSummary,
+  initialCommand,
 }: {
   view: WorkspaceView;
   workspace: { id: string; name: string; slug: string; isDemo: boolean };
@@ -345,10 +373,12 @@ function WorkspaceHomeState({
   workspaceLabels: IssueLabelItem[];
   workspaceMembers: WorkspaceMemberItem[];
   workspaceInvitations: WorkspaceInvitationItem[];
+  workspaceSavedViews: WorkspaceSavedViewItem[];
   currentMembershipRole: "owner" | "admin" | "member";
   issueFilters: IssueFilters;
   selectedIssue: IssueListItemWithProject | null;
   viewSummary: ProjectViewSummary | null;
+  initialCommand?: string;
 }) {
   const selectedProject =
     projects.find((project) => project.key === selectedProjectKey) ?? projects[0] ?? null;
@@ -366,6 +396,7 @@ function WorkspaceHomeState({
           workspaceSlug={workspace.slug}
           projects={projects}
           selectedProjectKey={selectedProjectKey}
+          initialCommand={initialCommand}
         />
       ) : view === "issues" ? (
         <IssuePanel
@@ -382,13 +413,16 @@ function WorkspaceHomeState({
           workspaceMembers={workspaceMembers}
           filters={issueFilters}
           selectedIssue={selectedIssue}
+          initialCommand={initialCommand}
         />
       ) : view === "views" ? (
         <ViewsPanel
+          workspaceId={workspace.id}
           workspaceSlug={workspace.slug}
           projects={issueProjects}
           selectedProjectKey={selectedProjectKey}
           summary={viewSummary}
+          savedViews={workspaceSavedViews}
         />
       ) : (
         <SettingsPanel
@@ -463,6 +497,23 @@ type WorkspaceInvitationItem = {
     name: string | null;
     email: string;
   };
+};
+
+type WorkspaceSavedViewItem = {
+  id: string;
+  name: string;
+  filters: IssueFilters;
+  updatedAt: string;
+  canManage: boolean;
+  project: {
+    id: string;
+    key: string;
+    name: string;
+  };
+  creator: {
+    name: string | null;
+    email: string;
+  } | null;
 };
 
 function normalizeActivityMetadata(

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Archive, ArrowUpRight, Check, FolderKanban, Pencil, Plus, X } from "lucide-react";
 import {
   archiveProjectAction,
@@ -19,6 +20,7 @@ import { CountBadge } from "@/components/ui/count-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/utils";
+import { commandEvents } from "@/lib/command-events";
 
 export type ProjectListItem = {
   id: string;
@@ -37,13 +39,40 @@ export function ProjectPanel({
   workspaceSlug,
   projects,
   selectedProjectKey,
+  initialCommand,
 }: {
   workspaceId: string;
   workspaceSlug: string;
   projects: ProjectListItem[];
   selectedProjectKey: string | null;
+  initialCommand?: string;
 }) {
-  const [isCreating, setIsCreating] = useState(false);
+  const router = useRouter();
+  const [isCreating, setIsCreating] = useState(
+    initialCommand === "create-project",
+  );
+
+  useEffect(() => {
+    function openCreateProject() {
+      setIsCreating(true);
+    }
+
+    window.addEventListener(commandEvents.createProject, openCreateProject);
+    return () =>
+      window.removeEventListener(commandEvents.createProject, openCreateProject);
+  }, []);
+
+  useEffect(() => {
+    if (initialCommand !== "create-project") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    params.delete("command");
+    router.replace(`${window.location.pathname}?${params.toString()}`, {
+      scroll: false,
+    });
+  }, [initialCommand, router]);
 
   return (
     <div className="grid gap-6">

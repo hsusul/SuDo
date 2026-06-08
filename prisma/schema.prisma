@@ -58,6 +58,7 @@ model User {
   demoResets                   DemoReset[]
   sentWorkspaceInvitations     WorkspaceInvitation[] @relation("WorkspaceInvitationInviter")
   acceptedWorkspaceInvitations WorkspaceInvitation[] @relation("WorkspaceInvitationAcceptor")
+  createdSavedViews            SavedView[]           @relation("SavedViewCreator")
 
   @@index([clerkUserId])
 }
@@ -84,6 +85,7 @@ model Workspace {
   activityLogs    ActivityLog[]
   demoResets      DemoReset[]
   invitations     WorkspaceInvitation[]
+  savedViews      SavedView[]
 
   @@index([createdById])
   @@index([isDemo])
@@ -145,6 +147,7 @@ model Project {
   createdBy    User          @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
   issues       Issue[]
   activityLogs ActivityLog[]
+  savedViews   SavedView[]
 
   @@unique([workspaceId, key])
   @@index([workspaceId])
@@ -268,6 +271,25 @@ model ActivityLog {
   @@index([workspaceId, createdAt])
   @@index([issueId, createdAt])
   @@index([actorId])
+}
+
+model SavedView {
+  id          String    @id @default(cuid())
+  workspaceId String
+  projectId   String
+  creatorId   String?
+  name        String
+  filters     Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator     User?     @relation("SavedViewCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, updatedAt])
+  @@index([projectId])
+  @@index([creatorId])
 }
 
 model DemoReset {

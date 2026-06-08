@@ -11,6 +11,7 @@ import {
 import { parseIssueFilters } from "@/lib/issue-filter-validation";
 import { buildIssueListPath } from "@/lib/issue-url";
 import { parseLabelInput } from "@/lib/label-validation";
+import { logMutationFailure } from "@/lib/server-logger";
 
 export type LabelActionState = {
   error?: string;
@@ -43,6 +44,10 @@ export async function createLabelAction(
       throw error;
     }
 
+    logMutationFailure("label.create_and_attach", error, {
+      workspaceId,
+      issueId,
+    });
     return {
       error: getSafeActionErrorMessage(
         error,
@@ -70,6 +75,7 @@ export async function addLabelToIssueAction(
       throw error;
     }
 
+    logMutationFailure("label.attach", error, { issueId, labelId });
     return {
       error: getSafeActionErrorMessage(
         error,
@@ -97,6 +103,7 @@ export async function removeLabelFromIssueAction(
       throw error;
     }
 
+    logMutationFailure("label.detach", error, { issueId, labelId });
     return {
       error: getSafeActionErrorMessage(
         error,

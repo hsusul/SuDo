@@ -14,9 +14,25 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SuDo",
+  metadataBase: getMetadataBase(),
+  title: {
+    default: "SuDo - Issue tracking for small teams",
+    template: "%s | SuDo",
+  },
   description:
-    "A calm, focused issue tracker for solo builders and small technical teams.",
+    "A deployed multi-tenant issue tracker with projects, assignees, saved views, comments, activity history, RBAC, and keyboard-driven workflows.",
+  openGraph: {
+    title: "SuDo - Issue tracking for small teams",
+    description:
+      "Plan projects, assign issues, save filtered views, and keep team decisions attached to the work.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "SuDo - Issue tracking for small teams",
+    description:
+      "A production-backed issue tracker built with Next.js, Clerk, Prisma, Neon, and Vercel.",
+  },
 };
 
 export default function RootLayout({
@@ -34,4 +50,18 @@ export default function RootLayout({
       </body>
     </html>
   );
+}
+
+function getMetadataBase() {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (!appUrl) {
+    return undefined;
+  }
+
+  try {
+    return new URL(appUrl);
+  } catch {
+    return undefined;
+  }
 }

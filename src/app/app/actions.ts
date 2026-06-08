@@ -7,6 +7,7 @@ import { requireCurrentUser } from "@/lib/auth";
 import { createDemoWorkspaceForUser } from "@/lib/demo-seed";
 import { assertMutationAllowed } from "@/lib/mutation-rate-limit";
 import { getPrisma } from "@/lib/prisma";
+import { logMutationFailure } from "@/lib/server-logger";
 import { createWorkspaceForUser } from "@/lib/workspace";
 import { parseWorkspaceName } from "@/lib/workspace-validation";
 
@@ -52,6 +53,7 @@ export async function createWorkspaceAction(
       throw error;
     }
 
+    logMutationFailure("workspace.create", error);
     return {
       error: getSafeActionErrorMessage(
         error,
@@ -90,6 +92,7 @@ export async function createDemoWorkspaceAction(
       throw error;
     }
 
+    logMutationFailure("workspace.demo.create", error);
     return {
       error: getSafeActionErrorMessage(
         error,
